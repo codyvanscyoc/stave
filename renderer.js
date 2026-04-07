@@ -13,7 +13,6 @@ let currentWriteNote = null
 let currentPlanNote  = null
 let tags = []
 let saveTimer = null
-let schemeVisible = false
 let currentReminderRow = null
 let winModeState = 'hide'
 let cmuDict = null
@@ -241,58 +240,6 @@ const SCHEME_COLORS = ['#c8922a','#4caf7d','#7f77dd','#d85a30','#378add','#d4537
 function getLineEndWord(line) {
   const words = line.trim().split(/\s+/)
   return words[words.length-1]?.replace(/[^a-z]/gi,'').toLowerCase() || ''
-}
-
-function updateScheme() {
-  const overlay = document.getElementById('scheme-overlay')
-  if (!schemeVisible) { overlay.innerHTML = ''; return }
-
-  const lines = document.getElementById('idea-area').value.split('\n')
-  
-  // Build rhyme families — group words that share a rhyme signature
-  const rhymeFamilies = {} // sig → family index
-  const wordFamily = {}    // word → family index
-  let familyCount = 0
-
-  lines.forEach(line => {
-    const w = getLineEndWord(line)
-    if (!w) return
-    if (wordFamily[w] !== undefined) return // already assigned
-
-    const sig = getRhymeSignature(w)
-    
-    if (sig && rhymeFamilies[sig] !== undefined) {
-      // this word rhymes with an existing family
-      wordFamily[w] = rhymeFamilies[sig]
-    } else {
-      // new family
-      const idx = familyCount++
-      wordFamily[w] = idx
-      if (sig) rhymeFamilies[sig] = idx
-    }
-  })
-
-  overlay.innerHTML = ''
-  lines.forEach(line => {
-    const div = document.createElement('div')
-    div.className = 'scheme-label'
-    const w = getLineEndWord(line)
-    if (w && wordFamily[w] !== undefined) {
-      const idx = wordFamily[w]
-      div.textContent = String.fromCharCode(65 + (idx % 26))
-      div.style.color = SCHEME_COLORS[idx % SCHEME_COLORS.length]
-    }
-    overlay.appendChild(div)
-  })
-}
-
-function toggleScheme() {
-  schemeVisible = !schemeVisible
-  document.getElementById('scheme-btn').classList.toggle('active-toggle', schemeVisible)
-  const overlay = document.getElementById('scheme-overlay')
-  overlay.classList.toggle('visible', schemeVisible)
-  document.getElementById('idea-area').style.paddingLeft = schemeVisible ? '20px' : '0'
-  schemeVisible ? updateScheme() : (overlay.innerHTML = '')
 }
 
 // ── SYLLABLE OVERLAY ──
@@ -728,7 +675,6 @@ ipcRenderer.on('lockin-closed', (event, updatedContent) => {
   if (currentMode === 'write' && currentWriteNote) {
     document.getElementById('idea-area').value = updatedContent
     updateSyllableOverlay()
-    if (schemeVisible) updateScheme()
   } else if (currentMode === 'plan' && currentPlanNote) {
     document.getElementById('admin-area').value = updatedContent
   }

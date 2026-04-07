@@ -136,18 +136,6 @@
       height: 24.7px; display: flex; align-items: center; justify-content: flex-end;
     }
 
-    #scheme-overlay {
-      position: absolute; top: 25px; left: 2px;
-      pointer-events: none; width: 14px; display: none;
-    }
-
-    #scheme-overlay.visible { display: block; }
-
-    .scheme-label {
-      font-size: 9px; font-weight: 500;
-      height: 24.7px; display: flex; align-items: center;
-    }
-
     .context-wrap { padding: 7px 13px 0; flex-shrink: 0; }
 
     .context-inner {
@@ -507,7 +495,6 @@
     <div id="panel-write" class="panel active">
       <div class="idea-wrap">
         <div class="field-label">write</div>
-        <div id="scheme-overlay"></div>
         <div id="syl-overlay"></div>
         <textarea id="idea-area" placeholder="write anything..." spellcheck="true"></textarea>
       </div>
@@ -524,7 +511,7 @@
         </div>
       </div>
       <div class="panel-footer">
-        <button class="btn" id="scheme-btn" onclick="toggleScheme()">rhyme scheme</button>
+        
         <button class="btn" onclick="showMarkdownHint()">?</button>
         <div class="footer-spacer"></div>
         <span class="footer-hint">⌘b bold · ⌘i italic · ⌘n new · ⌘f search</span>

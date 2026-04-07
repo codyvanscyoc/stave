@@ -587,7 +587,7 @@
 
   <!-- DATE POPUP -->
   <div id="date-popup">
-    <div class="date-popup-label">phase deadline</div>
+   <div class="date-popup-label" id="date-popup-label">phase deadline</div>
     <input class="date-popup-input" type="date" id="deadline-input">
     <div class="date-popup-footer">
       <button class="btn" onclick="closeDatePopup()">cancel</button>
@@ -625,6 +625,7 @@
     let projects = []
     let currentProjectIndex = 0
     let currentPhaseForDeadline = null
+let currentDateField = 'deadline' // 'start' or 'deadline'
     let currentReminderTaskIndex = null
     let saveTimer = null
 
@@ -674,8 +675,9 @@
       md += `## braindump\n${p.braindump}\n\n`
       md += `## phases\n`
       p.phases.forEach(phase => {
-        md += `### ${phase.name}\n`
-        if (phase.deadline) md += `deadline: ${phase.deadline}\n`
+  md += `### ${phase.name}\n`
+  if (phase.start) md += `start: ${phase.start}\n`
+  if (phase.deadline) md += `deadline: ${phase.deadline}\n`
         phase.tasks.forEach(t => {
           md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
         })
@@ -723,7 +725,9 @@
             currentPhase = { name: line.slice(4).trim(), deadline: null, tasks: [] }
             p.phases.push(currentPhase)
           } else if (line.startsWith('deadline: ') && currentPhase) {
-            currentPhase.deadline = line.slice(10).trim()
+  currentPhase.deadline = line.slice(10).trim()
+} else if (line.startsWith('start: ') && currentPhase) {
+  currentPhase.start = line.slice(7).trim()
           } else if ((line.startsWith('- [ ] ') || line.startsWith('- [x] ')) && currentPhase) {
             currentPhase.tasks.push({
               text: line.slice(6).trim(),
@@ -856,10 +860,15 @@
           autoSave(); renderTimeline(); renderProjectDots()
         }
 
-        const deadlineBtn = document.createElement('button')
-        deadlineBtn.className = 'phase-deadline' + (phase.deadline ? ' set' : '')
-        deadlineBtn.textContent = phase.deadline ? formatDeadline(phase.deadline) : 'deadline'
-        deadlineBtn.onclick = () => openDatePopup(pi, deadlineBtn)
+        const startBtn = document.createElement('button')
+startBtn.className = 'phase-deadline' + (phase.start ? ' set' : '')
+startBtn.textContent = phase.start ? formatDeadline(phase.start) : 'start'
+startBtn.onclick = () => openDatePopup(pi, startBtn, 'start')
+
+const deadlineBtn = document.createElement('button')
+deadlineBtn.className = 'phase-deadline' + (phase.deadline ? ' set' : '')
+deadlineBtn.textContent = phase.deadline ? formatDeadline(phase.deadline) : 'deadline'
+deadlineBtn.onclick = () => openDatePopup(pi, deadlineBtn, 'deadline')
 
         const controls = document.createElement('div')
         controls.className = 'phase-controls'
@@ -881,7 +890,7 @@
         }
 
         controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(delBtn)
-        header.appendChild(nameInput); header.appendChild(deadlineBtn); header.appendChild(controls)
+        header.appendChild(nameInput); header.appendChild(startBtn); header.appendChild(deadlineBtn); header.appendChild(controls)
 
         const tasksDiv = document.createElement('div')
         tasksDiv.className = 'phase-tasks'
@@ -939,9 +948,9 @@
     }
 
     function addPhase() {
-      const p = projects[currentProjectIndex]
-      if (!p) return
-      p.phases.push({ name: 'new phase', deadline: null, tasks: [] })
+  const p = projects[currentProjectIndex]
+  if (!p) return
+  p.phases.push({ name: 'new phase', start: null, deadline: null, tasks: [] })
       autoSave(); renderPhases(); renderTimeline()
       setTimeout(() => {
         const blocks = document.querySelectorAll('.phase-block')
@@ -951,16 +960,20 @@
     }
 
     // ── DEADLINE POPUP ──
-    function openDatePopup(phaseIndex, btn) {
-      currentPhaseForDeadline = phaseIndex
-      const p = projects[currentProjectIndex]
-      document.getElementById('deadline-input').value =
-        p.phases[phaseIndex].deadline || new Date().toISOString().slice(0,10)
-      const rect = btn.getBoundingClientRect()
-      const popup = document.getElementById('date-popup')
-      popup.style.top = (rect.bottom + 6) + 'px'
-      popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px'
-      popup.classList.add('open')
+    function openDatePopup(phaseIndex, btn, field) {
+  currentPhaseForDeadline = phaseIndex
+  currentDateField = field || 'deadline'
+  const p = projects[currentProjectIndex]
+  const phase = p.phases[phaseIndex]
+  const val = field === 'start' ? phase.start : phase.deadline
+  document.getElementById('deadline-input').value = val || new Date().toISOString().slice(0,10)
+  document.getElementById('date-popup-label').textContent = field === 'start' ? 'phase start date' : 'phase deadline'
+  const rect = btn.getBoundingClientRect()
+  const popup = document.getElementById('date-popup')
+  popup.style.top = (rect.bottom + 6) + 'px'
+  popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px'
+  popup.classList.add('open')
+
     }
 
     function closeDatePopup() {
@@ -969,12 +982,17 @@
     }
 
     function confirmDeadline() {
-      const date = document.getElementById('deadline-input').value
-      if (!date || currentPhaseForDeadline === null) { closeDatePopup(); return }
-      const p = projects[currentProjectIndex]
-      p.phases[currentPhaseForDeadline].deadline = date
-      autoSave(); renderPhases(); renderTimeline()
-      closeDatePopup()
+  const date = document.getElementById('deadline-input').value
+  if (!date || currentPhaseForDeadline === null) { closeDatePopup(); return }
+  const p = projects[currentProjectIndex]
+  if (currentDateField === 'start') {
+    p.phases[currentPhaseForDeadline].start = date
+  } else {
+    p.phases[currentPhaseForDeadline].deadline = date
+  }
+  autoSave(); renderPhases(); renderTimeline()
+  closeDatePopup()
+
     }
 
     function formatDeadline(dateStr) {
@@ -990,79 +1008,122 @@
 
     // ── TIMELINE — STACKED ROWS ──
     function renderTimeline() {
-      const p = projects[currentProjectIndex]
-      const container = document.getElementById('timeline-rows')
-      const empty = document.getElementById('timeline-empty')
-      container.innerHTML = ''
+  const p = projects[currentProjectIndex]
+  const container = document.getElementById('timeline-rows')
+  container.innerHTML = ''
 
-      const phasesWithDeadlines = p ? p.phases.filter(ph => ph.deadline) : []
+  const phasesWithDeadlines = p ? p.phases.filter(ph => ph.deadline) : []
 
-      if (!phasesWithDeadlines.length) {
-        const emptyEl = document.createElement('div')
-        emptyEl.className = 'empty-tasks'
-        emptyEl.textContent = 'set phase deadlines to see timeline'
-        container.appendChild(emptyEl)
-        return
-      }
+  if (!phasesWithDeadlines.length) {
+    const emptyEl = document.createElement('div')
+    emptyEl.className = 'empty-tasks'
+    emptyEl.textContent = 'set phase deadlines to see timeline'
+    container.appendChild(emptyEl)
+    return
+  }
 
-      const now = new Date()
-      const allDates = phasesWithDeadlines.map(ph => new Date(ph.deadline + 'T12:00:00'))
-      const projectStart = new Date(p.created)
-      const minDate = new Date(Math.min(projectStart, now, ...allDates))
-      const maxDate = new Date(Math.max(...allDates))
-      maxDate.setDate(maxDate.getDate() + 2)
-      const totalMs = maxDate - minDate
+  const now = new Date()
+  const projectStart = new Date(p.created)
 
-      phasesWithDeadlines.forEach((phase, i) => {
-        const phaseIndex = p.phases.indexOf(phase)
-        const color = PHASE_COLORS[phaseIndex % PHASE_COLORS.length]
-        const deadline = new Date(phase.deadline + 'T12:00:00')
-        const isPast = deadline < now
-        const diff = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24))
+  // find overall min and max dates for scaling
+  const allStarts = phasesWithDeadlines.map(ph =>
+    ph.start ? new Date(ph.start + 'T12:00:00') : projectStart
+  )
+  const allEnds = phasesWithDeadlines.map(ph => new Date(ph.deadline + 'T12:00:00'))
 
-        const row = document.createElement('div')
-        row.className = 'timeline-row'
+  const minDate = new Date(Math.min(...allStarts, now))
+  const maxDate = new Date(Math.max(...allEnds))
+  minDate.setDate(minDate.getDate() - 1)
+  maxDate.setDate(maxDate.getDate() + 2)
+  const totalMs = maxDate - minDate
 
-        const label = document.createElement('div')
-        label.className = 'timeline-row-label'
-        label.textContent = phase.name
-        label.title = phase.name
+  // today line percentage
+  const todayPct = Math.max(0, Math.min(100, ((now - minDate) / totalMs) * 100))
 
-        const track = document.createElement('div')
-        track.className = 'timeline-row-track'
+  // build rows
+  phasesWithDeadlines.forEach((phase, i) => {
+    const phaseIndex = p.phases.indexOf(phase)
+    const color = PHASE_COLORS[phaseIndex % PHASE_COLORS.length]
+    const deadline = new Date(phase.deadline + 'T12:00:00')
+    const start = phase.start ? new Date(phase.start + 'T12:00:00') : projectStart
+    const isPast = deadline < now
+    const diff = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24))
 
-        // fill bar — from start to deadline
-        const fillPct = Math.min(100, ((deadline - minDate) / totalMs) * 100)
-        const fill = document.createElement('div')
-        fill.className = 'timeline-row-fill'
-        fill.style.width = fillPct + '%'
-        fill.style.background = color
-        fill.style.opacity = isPast ? '0.3' : '0.75'
+    const startPct = Math.max(0, Math.min(95, ((start - minDate) / totalMs) * 100))
+    const endPct = Math.max(0, Math.min(100, ((deadline - minDate) / totalMs) * 100))
+    const widthPct = Math.max(2, endPct - startPct)
 
-        // today line
-        const todayPct = Math.max(0, Math.min(100, ((now - minDate) / totalMs) * 100))
-        const todayLine = document.createElement('div')
-        todayLine.className = 'timeline-row-today'
-        todayLine.style.left = todayPct + '%'
+    const row = document.createElement('div')
+    row.className = 'timeline-row'
+    row.style.cssText = 'position:relative; height:26px; margin-bottom:4px;'
 
-        track.appendChild(fill)
-        track.appendChild(todayLine)
+    // the bar
+    const bar = document.createElement('div')
+    bar.style.cssText = `
+      position: absolute;
+      left: ${startPct}%;
+      width: ${widthPct}%;
+      top: 0; height: 22px;
+      background: ${color};
+      opacity: ${isPast ? 0.35 : 0.8};
+      border-radius: 5px;
+      display: flex; align-items: center;
+      padding: 0 8px;
+      overflow: hidden;
+      white-space: nowrap;
+      cursor: default;
+    `
 
-        const remaining = document.createElement('div')
-        remaining.className = 'timeline-row-remaining'
-        if (isPast) remaining.textContent = `${Math.abs(diff)}d ago`
-        else if (diff === 0) remaining.textContent = 'today'
-        else if (diff <= 30) remaining.textContent = `${diff}d`
-        else if (diff <= 90) remaining.textContent = `${Math.ceil(diff/7)}w`
-        else remaining.textContent = `${Math.ceil(diff/30)}mo`
-        remaining.style.color = isPast ? 'var(--danger)' : diff <= 7 ? 'var(--accent)' : 'var(--text3)'
+    const barLabel = document.createElement('span')
+    barLabel.style.cssText = `
+      font-size: 9px; font-weight: 500;
+      color: #1c1c1e; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    `
+    barLabel.textContent = phase.name
+    bar.appendChild(barLabel)
 
-        row.appendChild(label)
-        row.appendChild(track)
-        row.appendChild(remaining)
-        container.appendChild(row)
-      })
-    }
+    // remaining time tag
+    const tag = document.createElement('span')
+    tag.style.cssText = `
+      position: absolute;
+      right: -38px; top: 3px;
+      font-size: 9px;
+      color: ${isPast ? 'var(--danger)' : diff <= 7 ? 'var(--accent)' : 'var(--text3)'};
+      white-space: nowrap;
+      font-family: JetBrains Mono, monospace;
+    `
+    if (isPast) tag.textContent = `${Math.abs(diff)}d ago`
+    else if (diff === 0) tag.textContent = 'today'
+    else if (diff <= 30) tag.textContent = `${diff}d`
+    else if (diff <= 90) tag.textContent = `${Math.ceil(diff/7)}w`
+    else tag.textContent = `${Math.ceil(diff/30)}mo`
+
+    row.appendChild(bar)
+    row.appendChild(tag)
+    container.appendChild(row)
+  })
+
+  // today line overlay — drawn over all rows
+  const todayLine = document.createElement('div')
+  todayLine.style.cssText = `
+    position: absolute;
+    left: ${todayPct}%;
+    top: 0; bottom: 0;
+    width: 1.5px;
+    background: var(--accent);
+    opacity: 0.8;
+    pointer-events: none;
+    border-radius: 1px;
+  `
+
+  // wrap in relative container so today line spans all rows
+  const wrapper = document.createElement('div')
+  wrapper.style.cssText = 'position: relative;'
+  while (container.firstChild) wrapper.appendChild(container.firstChild)
+  wrapper.appendChild(todayLine)
+  container.appendChild(wrapper)
+}
 
     // ── EXTRACT TASKS ──
     const ACTION_WORDS = [
