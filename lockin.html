@@ -290,6 +290,13 @@
         <button class="ctrl-btn active" id="w-medium" onclick="setWidth('medium')">medium</button>
         <button class="ctrl-btn" id="w-wide" onclick="setWidth('wide')">wide</button>
       </div>
+      
+<div id="template-switcher" style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px;">
+  <div class="room-dot" id="dot-blank"   onclick="applyTemplate('blank')"   title="blank"       style="background:#4e4a44;"></div>
+  <div class="room-dot" id="dot-sermon"  onclick="applyTemplate('sermon')"  title="sermon"      style="background:#378add;"></div>
+  <div class="room-dot" id="dot-essay"   onclick="applyTemplate('essay')"   title="essay"       style="background:#7f77dd;"></div>
+  <div class="room-dot" id="dot-study"   onclick="applyTemplate('study')"   title="bible study" style="background:#4caf7d;"></div>
+</div>
 
       <div id="room-switcher">
   <div class="room-dot active" id="dot-stave"       onclick="setRoom('stave')"       title="stave"></div>
@@ -317,15 +324,123 @@
     let currentMode = 'write'
 
     ipcRenderer.on('init-lockin', (event, { mode, content, title, filepath }) => {
-      currentMode = mode
-      currentFilepath = filepath
-      document.getElementById('doc-title').textContent = title || 'untitled'
-      document.getElementById('editor').value = content || ''
-      document.getElementById('editor').focus()
-      updateWordCount()
-      updateOutline()
-    })
+  currentMode = mode
+  currentFilepath = filepath
+  document.getElementById('doc-title').textContent = title || 'untitled'
+  document.getElementById('editor').value = content || ''
+  document.getElementById('editor').focus()
+  updateWordCount()
+  updateOutline()
+  // show template picker only for longform tabs with no content
+  if (mode === 'longform' && !content) showTemplatePicker()
+})
+const TEMPLATES = {
+  blank: { title: '', content: '' },
+  sermon: {
+    title: 'New Sermon',
+    content: '# Series\n\n\n# Scripture\n\n\n# Big Idea\nOne sentence that captures everything.\n\n\n# Point 1\n\n\n# Point 2\n\n\n# Point 3\n\n\n# Illustration\n\n\n# Application\n\n\n# Call to Action'
+  },
+  essay: {
+    title: 'New Essay',
+    content: '# Introduction\n\n\n# Main Argument\n\n\n# Supporting Point 1\n\n\n# Supporting Point 2\n\n\n# Supporting Point 3\n\n\n# Conclusion'
+  },
+  study: {
+    title: 'New Bible Study',
+    content: '# Passage\n\n\n# Observation\nWhat does it say?\n\n\n# Interpretation\nWhat does it mean?\n\n\n# Application\nWhat do I do with it?\n\n\n# Prayer'
+  }
+}
 
+function showTemplatePicker() {
+  const picker = document.getElementById('template-picker')
+  const options = document.getElementById('template-options')
+  options.innerHTML = ''
+  picker.style.display = 'flex'
+
+  Object.entries(TEMPLATES).forEach(([key, tmpl]) => {
+    const btn = document.createElement('button')
+    btn.style.cssText = `
+      font-family: JetBrains Mono, monospace; font-size: 11px;
+      padding: 10px 14px; border-radius: 6px;
+      border: 0.5px solid var(--border2); color: var(--text2);
+      background: var(--bg2); cursor: pointer; text-align: left;
+      transition: all 0.12s; outline: none; width: 100%;
+    `
+    const labels = { blank: 'blank', sermon: 'sermon', essay: 'essay', study: 'bible study' }
+    const descs  = { blank: 'empty — start fresh', sermon: 'scripture · points · application', essay: 'intro · argument · conclusion', study: 'observe · interpret · apply · pray' }
+    btn.onmouseenter = () => { btn.style.borderColor = 'var(--accent2)'; btn.style.color = 'var(--text)' }
+    btn.onmouseleave = () => { btn.style.borderColor = 'var(--border2)'; btn.style.color = 'var(--text2)' }
+    btn.innerHTML = `<div style="font-weight:500;color:var(--text);margin-bottom:3px;">${labels[key]}</div><div style="font-size:9px;color:var(--text3)">${descs[key]}</div>`
+    btn.onclick = () => {
+      picker.style.display = 'none'
+      applyTemplate(key)
+    }
+    options.appendChild(btn)
+  })
+}
+
+function skipTemplate() {
+  document.getElementById('template-picker').style.display = 'none'
+  document.getElementById('editor').focus()
+}
+function showConfirm(message, onConfirm) {
+  const popup = document.getElementById('confirm-popup')
+  document.getElementById('confirm-message').textContent = message
+  popup.style.display = 'flex'
+
+  document.getElementById('confirm-cancel').onclick = () => {
+    popup.style.display = 'none'
+  }
+
+  document.getElementById('confirm-ok').onclick = () => {
+    popup.style.display = 'none'
+    onConfirm()
+  }
+}
+
+function applyTemplate(key) {
+  const tmpl = TEMPLATES[key]
+  if (!tmpl) return
+  const editor = document.getElementById('editor')
+
+  // only apply if editor is empty or confirm if not
+  if (editor.value.trim() && key !== 'blank') {
+    if (!confirm('Replace current content with this template?')) return
+  }
+
+  if (key === 'blank') {
+    if (editor.value.trim()) {
+      showConfirm('Clear all content? This cannot be undone.', () => {
+        editor.value = ''
+        autoSave()
+        updateWordCount()
+        if (outlineVisible) updateOutline()
+      })
+      return
+    }
+    editor.value = ''
+  } else if (tmpl.content) {
+    if (editor.value.trim()) {
+      showConfirm('Replace current content with this template?', () => {
+        editor.value = tmpl.content
+        autoSave()
+        updateWordCount()
+        if (outlineVisible) updateOutline()
+      })
+      return
+    }
+    editor.value = tmpl.content
+  }
+  autoSave()
+  updateWordCount()
+  if (outlineVisible) updateOutline()
+
+  editor.focus()
+
+  // update active dot
+  document.querySelectorAll('#template-switcher .room-dot').forEach(d => d.classList.remove('active'))
+  const dot = document.getElementById('dot-' + key)
+  if (dot) dot.classList.add('active')
+}
     function setWidth(size) {
       const widths = { narrow: '520px', medium: '660px', wide: '860px' }
       const w = widths[size]
@@ -484,5 +599,23 @@
       if (outlineVisible) updateOutline()
     })
   </script>
+  <div id="template-picker" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
+  <div style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:10px;padding:24px;width:300px;">
+    <div style="font-size:9px;font-weight:500;color:var(--text3);letter-spacing:0.14em;text-transform:uppercase;margin-bottom:16px;">choose template</div>
+    <div id="template-options" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="margin-top:12px;text-align:right;">
+      <button onclick="skipTemplate()" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:4px 10px;border-radius:5px;border:0.5px solid var(--text3);color:var(--text3);background:transparent;cursor:pointer;outline:none;">skip</button>
+    </div>
+  </div>
+</div>
+<div id="confirm-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center;">
+  <div style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:10px;padding:24px;width:280px;">
+    <div id="confirm-message" style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="confirm-cancel" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid var(--accent2);color:var(--accent);background:var(--accentbg);cursor:pointer;outline:none;">cancel</button>
+      <button id="confirm-ok" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid var(--border2);color:var(--text3);background:transparent;cursor:pointer;outline:none;">clear</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

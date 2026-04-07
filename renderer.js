@@ -732,13 +732,14 @@ function switchTab(index) {
 function newTab() {
   saveCurrentTab()
   const tab = emptyTab(newTabMode)
-  createNoteFile(tab)
   tabs.push(tab)
   currentTabIndex = tabs.length - 1
-  loadTabIntoDOM(tab)
-  renderTabBar()
-  saveTabPrefs()
-  document.getElementById('note-title').focus()
+  createNoteFile(tab, () => {
+    loadTabIntoDOM(tab)
+    renderTabBar()
+    saveTabPrefs()
+    if (tab.mode !== 'longform') document.getElementById('note-title').focus()
+  })
 }
 
 function closeTab(index) {
@@ -821,7 +822,7 @@ function setNewTabMode(mode) {
   renderTabBar()
 }
 
-function createNoteFile(tab) {
+function createNoteFile(tab, callback) {
   const dir = getDirForMode(tab.mode)
   const now = new Date()
   const stamp = now.toISOString().slice(0,16).replace('T','_').replace(':','-')
@@ -830,8 +831,21 @@ function createNoteFile(tab) {
   tab.filename = filename
   tab.filepath = filepath
   tab.title = formatDateTitle(now)
-  const content = serializeTab(tab)
-  try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+
+  if (tab.mode === 'longform') {
+    chooseLongformTemplate((key) => {
+      const tmpl = getTemplateContent(key)
+      if (tmpl.title) tab.title = tmpl.title
+      tab.idea = tmpl.content
+      const content = serializeTab(tab)
+      try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+      if (callback) callback()
+    })
+  } else {
+    const content = serializeTab(tab)
+    try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+    if (callback) callback()
+  }
 }
 
 // ── TAB PREFS ──
@@ -1039,6 +1053,57 @@ function autoSave() {
 function saveCurrentNote() { saveCurrentTab() }
 
 function newNote() { newTab() }
+function chooseLongformTemplate(callback) {
+  const templates = [
+    { key: 'blank', label: 'blank', desc: 'empty note' },
+    { key: 'sermon', label: 'sermon', desc: 'scripture · big idea · points · application' },
+    { key: 'essay', label: 'essay', desc: 'intro · argument · conclusion' },
+    { key: 'study', label: 'bible study', desc: 'observe · interpret · apply · pray' }
+  ]
+
+  const picker = document.getElementById('template-picker')
+  const options = document.getElementById('template-options')
+  options.innerHTML = ''
+  picker.style.display = 'flex'
+
+  templates.forEach(t => {
+    const btn = document.createElement('button')
+    btn.style.cssText = `
+      font-family: JetBrains Mono, monospace; font-size: 11px;
+      padding: 10px 14px; border-radius: 6px;
+      border: 0.5px solid var(--border2); color: var(--text2);
+      background: var(--bg2); cursor: pointer; text-align: left;
+      transition: all 0.12s; outline: none;
+    `
+    btn.onmouseenter = () => { btn.style.borderColor = 'var(--accent2)'; btn.style.color = 'var(--text)' }
+    btn.onmouseleave = () => { btn.style.borderColor = 'var(--border2)'; btn.style.color = 'var(--text2)' }
+    btn.innerHTML = `<div style="font-weight:500;color:var(--text);margin-bottom:3px;">${t.label}</div><div style="font-size:9px;color:var(--text3)">${t.desc}</div>`
+    btn.onclick = () => {
+      picker.style.display = 'none'
+      callback(t.key)
+    }
+    options.appendChild(btn)
+  })
+}
+
+function getTemplateContent(key) {
+  const templates = {
+    blank: { title: '', content: '' },
+    sermon: {
+      title: 'New Sermon',
+      content: `# Series\n\n\n# Scripture\n\n\n# Big Idea\nOne sentence that captures everything.\n\n\n# Point 1\n\n\n# Point 2\n\n\n# Point 3\n\n\n# Illustration\n\n\n# Application\n\n\n# Call to Action`
+    },
+    essay: {
+      title: 'New Essay',
+      content: `# Introduction\n\n\n# Main Argument\n\n\n# Supporting Point 1\n\n\n# Supporting Point 2\n\n\n# Supporting Point 3\n\n\n# Conclusion`
+    },
+    study: {
+      title: 'New Bible Study',
+      content: `# Passage\n\n\n# Observation\nWhat does it say?\n\n\n# Interpretation\nWhat does it mean?\n\n\n# Application\nWhat do I do with it?\n\n\n# Prayer`
+    }
+  }
+  return templates[key] || templates.blank
+}
 
 function formatDateTitle(d) {
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
