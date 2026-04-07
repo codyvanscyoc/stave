@@ -29,7 +29,9 @@ function savePrefs(data) {
 }
 
 function ensureDirs() {
-  [NOTES_DIR, WRITE_DIR, PLAN_DIR].forEach(d => {
+  const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
+  const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
+  ;[NOTES_DIR, WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].forEach(d => {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true })
   })
 }
@@ -171,9 +173,13 @@ function positionWindow() {
 
 function openSearch() {
   if (searchWin && !searchWin.isDestroyed()) { searchWin.focus(); return }
+  const winBounds = win.getBounds()
+  const display = require('electron').screen.getDisplayNearestPoint({ x: winBounds.x, y: winBounds.y })
   searchWin = new BrowserWindow({
-    width: 500, height: 600, show: false, frame: false,
+    width: 500, height: 700, show: false, frame: false,
     resizable: true, backgroundColor: '#1c1c1e', alwaysOnTop: true,
+    x: display.workArea.x + Math.round((display.workArea.width - 500) / 2),
+    y: display.workArea.y + Math.round((display.workArea.height - 700) / 2),
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   })
   searchWin.loadFile('search.html')
@@ -207,9 +213,13 @@ function openLockIn(mode, content, title) {
 }
 function openReminders() {
   if (remindersWin && !remindersWin.isDestroyed()) { remindersWin.focus(); return }
+  const winBounds = win.getBounds()
+  const display = require('electron').screen.getDisplayNearestPoint({ x: winBounds.x, y: winBounds.y })
   remindersWin = new BrowserWindow({
     width: 420, height: 500, show: false, frame: false,
     resizable: true, backgroundColor: '#1c1c1e', alwaysOnTop: true,
+    x: display.workArea.x + Math.round((display.workArea.width - 420) / 2),
+    y: display.workArea.y + Math.round((display.workArea.height - 500) / 2),
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   })
   remindersWin.loadFile('reminders.html')
@@ -300,9 +310,13 @@ ipcMain.on('search-open-note', (event, { filename, mode }) => {
 })
 
 ipcMain.on('get-all-notes', (event) => {
-  const writeNotes = getNotesList('write').map(f => ({ filename: f, mode: 'write', dir: WRITE_DIR }))
-  const planNotes  = getNotesList('plan').map(f =>  ({ filename: f, mode: 'plan',  dir: PLAN_DIR  }))
-  const all = [...writeNotes, ...planNotes].map(n => {
+  const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
+  const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
+  const writeNotes    = getNotesList('write').map(f =>    ({ filename: f, mode: 'write',    dir: WRITE_DIR    }))
+  const planNotes     = getNotesList('plan').map(f =>     ({ filename: f, mode: 'plan',     dir: PLAN_DIR     }))
+  const longformNotes = getNotesList('longform').map(f => ({ filename: f, mode: 'longform', dir: LONGFORM_DIR }))
+  const projectNotes  = getNotesList('project').map(f =>  ({ filename: f, mode: 'project',  dir: PROJECTS_DIR }))
+  const all = [...writeNotes, ...planNotes, ...longformNotes, ...projectNotes].map(n => {
     try {
       const raw = fs.readFileSync(path.join(n.dir, n.filename), 'utf8')
       const titleLine = raw.split('\n').find(l => l.startsWith('# '))
@@ -413,7 +427,55 @@ ipcMain.on('export-pdf', (event, { html, title }) => {
     })
   })
 })
+// ── CONTEXT MENU ──
 
+app.on('web-contents-created', (event, contents) => {
+  contents.on('context-menu', (e, params) => {
+    const menu = new Menu()
+
+    // spell check suggestions
+    if (params.misspelledWord) {
+      if (params.dictionaryWords && params.dictionaryWords.length) {
+        params.dictionaryWords.slice(0, 5).forEach(word => {
+          menu.append(new MenuItem({
+            label: word,
+            click: () => contents.replaceMisspelling(word)
+          }))
+        })
+      } else {
+        menu.append(new MenuItem({ label: 'No suggestions', enabled: false }))
+      }
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(new MenuItem({
+        label: 'Add to dictionary',
+        click: () => contents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+      }))
+      menu.append(new MenuItem({ type: 'separator' }))
+    }
+
+    // add as task — only show if text is selected
+    if (params.selectionText && params.selectionText.trim().length > 0) {
+      menu.append(new MenuItem({
+        label: '→ add as task',
+        click: () => {
+          if (win) win.webContents.send('add-selection-as-task', params.selectionText.trim())
+        }
+      }))
+      menu.append(new MenuItem({ type: 'separator' }))
+    }
+
+    // standard editing
+    if (params.isEditable) {
+      menu.append(new MenuItem({ role: 'cut' }))
+      menu.append(new MenuItem({ role: 'copy' }))
+      menu.append(new MenuItem({ role: 'paste' }))
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ role: 'copy' }))
+    }
+
+    if (menu.items.length > 0) menu.popup()
+  })
+})
 app.whenReady().then(() => {
   ensureDirs()
   createTray()

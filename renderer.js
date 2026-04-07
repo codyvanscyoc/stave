@@ -8,10 +8,12 @@ const WRITE_DIR = path.join(NOTES_DIR, 'write')
 const PLAN_DIR  = path.join(NOTES_DIR, 'plan')
 const BIBLE_INDEX_PATH = path.join(__dirname, 'bible-index.json')
 
-let currentMode = 'write'
-let currentWriteNote = null
-let currentPlanNote  = null
-let tags = []
+// ── TAB SYSTEM ──
+// Each tab: { filename, filepath, mode, title, idea, context, tags, planContext, admin, tasks }
+let tabs = []
+let currentTabIndex = 0
+let newTabMode = 'write' // what mode the next new tab will be
+
 let saveTimer = null
 let currentReminderRow = null
 let winModeState = 'hide'
@@ -234,14 +236,6 @@ const SONGS_WORDS = {
   }
 }
 
-// ── RHYME SCHEME ──
-const SCHEME_COLORS = ['#c8922a','#4caf7d','#7f77dd','#d85a30','#378add','#d4537e']
-
-function getLineEndWord(line) {
-  const words = line.trim().split(/\s+/)
-  return words[words.length-1]?.replace(/[^a-z]/gi,'').toLowerCase() || ''
-}
-
 // ── SYLLABLE OVERLAY ──
 function updateSyllableOverlay() {
   const overlay = document.getElementById('syl-overlay')
@@ -267,16 +261,12 @@ function renderMarkdown(text) {
   }).join('\n')
 }
 
-function showMarkdownHint() {
-  document.getElementById('markdown-hint').style.display = 'block'
-}
-
-function hideMarkdownHint() {
-  document.getElementById('markdown-hint').style.display = 'none'
-}
+function showMarkdownHint() { document.getElementById('markdown-hint').style.display = 'block' }
+function hideMarkdownHint() { document.getElementById('markdown-hint').style.display = 'none' }
 
 function exportPDF() {
-  const title = document.getElementById('note-title').value || 'untitled'
+  const tab = tabs[currentTabIndex]
+  const title = tab?.title || 'untitled'
   const idea = document.getElementById('idea-area').value
   const context = document.getElementById('context-area').value
 
@@ -301,13 +291,9 @@ function exportPDF() {
 // ── FORMATTING ──
 function fmtToggle(marker) {
   const area = document.getElementById('idea-area')
-  const s = area.selectionStart
-  const e = area.selectionEnd
+  const s = area.selectionStart, e = area.selectionEnd
 
-  if (s !== e) {
-    fmtWrap(marker, marker)
-    return
-  }
+  if (s !== e) { fmtWrap(marker, marker); return }
 
   if (fmtModes[marker]) {
     const pos = area.selectionStart
@@ -320,8 +306,7 @@ function fmtToggle(marker) {
     area.selectionStart = area.selectionEnd = pos + marker.length
     fmtModes[marker] = true
   }
-  area.focus()
-  autoSave()
+  area.focus(); autoSave()
 }
 
 function fmtWrap(before, after) {
@@ -332,38 +317,7 @@ function fmtWrap(before, after) {
   area.value = area.value.slice(0,s) + replacement + area.value.slice(e)
   area.selectionStart = s + before.length
   area.selectionEnd = s + before.length + (selected || 'text').length
-  area.focus()
-  autoSave()
-}
-
-function fmtQuote() {
-  const area = document.getElementById('idea-area')
-  const pos = area.selectionStart
-  const text = area.value
-  const lineStart = text.lastIndexOf('\n', pos-1) + 1
-  const lineEnd = text.indexOf('\n', pos)
-  const end = lineEnd === -1 ? text.length : lineEnd
-  const line = text.slice(lineStart, end)
-  const newLine = line.startsWith('> ') ? line.slice(2) : '> ' + line
-  area.value = text.slice(0, lineStart) + newLine + text.slice(end)
-  area.selectionStart = area.selectionEnd = lineStart + newLine.length
-  area.focus()
-  autoSave()
-}
-
-function fmtBullet() {
-  const area = document.getElementById('idea-area')
-  const pos = area.selectionStart
-  const text = area.value
-  const lineStart = text.lastIndexOf('\n', pos-1) + 1
-  const lineEnd = text.indexOf('\n', pos)
-  const end = lineEnd === -1 ? text.length : lineEnd
-  const line = text.slice(lineStart, end)
-  const newLine = '• ' + line.replace(/^[•\-]\s*/,'')
-  area.value = text.slice(0, lineStart) + newLine + text.slice(end)
-  area.selectionStart = area.selectionEnd = lineStart + newLine.length
-  area.focus()
-  autoSave()
+  area.focus(); autoSave()
 }
 
 // ── SOURCE TOGGLE ──
@@ -381,8 +335,11 @@ async function openDrawer(word) {
   if (clean.length < 2) return
 
   currentDrawerWord = clean
+  currentSource = 'general'
+  ;['general','songs','scripture'].forEach(s => {
+    document.getElementById('src-'+s).classList.toggle('active', s === 'general')
+  })
 
-  // immediately clear and show new word
   document.getElementById('drawer-word').textContent = clean
   const sylCount = countSyllables(clean)
   const lineSyls = countLineSyllables(getCurrentLine())
@@ -396,7 +353,6 @@ async function openDrawer(word) {
 async function renderDrawerContent(word) {
   const container = document.getElementById('drawer-content')
   container.innerHTML = '<div class="drawer-loading">looking up...</div>'
-
   if (currentSource === 'general') await renderGeneral(word, container)
   else if (currentSource === 'songs') renderSongs(word, container)
   else if (currentSource === 'scripture') renderScripture(word, container)
@@ -406,7 +362,6 @@ async function renderGeneral(word, container) {
   container.innerHTML = ''
   const wordSig = getRhymeSignature(word)
 
-  // rhymes
   const rhymeSection = document.createElement('div')
   rhymeSection.className = 'drawer-section'
   const { perfect, near } = findRhymes(word)
@@ -424,7 +379,6 @@ async function renderGeneral(word, container) {
   renderChips(document.getElementById('rc-perfect'), perfect, true)
   renderChips(document.getElementById('rc-near'), near, false)
 
-  // synonyms
   const synSection = document.createElement('div')
   synSection.className = 'drawer-section'
   synSection.innerHTML = '<div class="drawer-label">synonyms</div><div class="syn-chips" id="syn-chips"><span class="drawer-loading">looking up...</span></div>'
@@ -456,7 +410,6 @@ function renderSongs(word, container) {
   container.innerHTML = ''
   const wordSig = getRhymeSignature(word)
 
-  // show rhymes first
   const rhymeSection = document.createElement('div')
   rhymeSection.className = 'drawer-section'
   const { perfect, near } = findRhymes(word)
@@ -468,7 +421,6 @@ function renderSongs(word, container) {
   renderChips(document.getElementById('rc-songs-p'), perfect, true)
   renderChips(document.getElementById('rc-songs-n'), near, false)
 
-  // show all songwriter categories
   Object.values(SONGS_WORDS).forEach(group => {
     const section = document.createElement('div')
     section.className = 'drawer-section'
@@ -498,7 +450,6 @@ function renderScripture(word, container) {
   container.innerHTML = ''
   const wordSig = getRhymeSignature(word)
 
-  // rhymes
   const rhymeSection = document.createElement('div')
   rhymeSection.className = 'drawer-section'
   const { perfect, near } = findRhymes(word)
@@ -591,10 +542,8 @@ function handleBullet(e) {
     e.preventDefault()
     const area = e.target
     const pos = area.selectionStart
-    const text = area.value
-    const indent = '    '
-    area.value = text.slice(0, pos) + indent + text.slice(pos)
-    area.selectionStart = area.selectionEnd = pos + indent.length
+    area.value = area.value.slice(0, pos) + '    ' + area.value.slice(pos)
+    area.selectionStart = area.selectionEnd = pos + 4
     autoSave()
     return
   }
@@ -635,51 +584,31 @@ function updateWinModeBtns() {
 // ── SEARCH / REMINDERS ──
 function openSearch() { ipcRenderer.send('open-search') }
 function openReminders() { ipcRenderer.send('open-reminders') }
+
 function openLockIn() {
-  if (currentMode === 'plan') {
-    openLockInPlan()
-    return
+  const tab = tabs[currentTabIndex]
+  if (!tab) return
+  saveCurrentTab()
+
+  if (tab.mode === 'plan' || tab.mode === 'project') {
+    ipcRenderer.send('open-lockin-plan', {
+      content: document.getElementById('admin-area').value,
+      title: tab.title,
+      filepath: tab.filepath
+    })
+  } else {
+    // write or longform both open lock in write
+    ipcRenderer.send('open-lockin', {
+      mode: tab.mode,
+      content: document.getElementById('idea-area').value,
+      title: tab.title,
+      filepath: tab.filepath
+    })
   }
-  const current = currentWriteNote
-  if (!current) return
-  saveCurrentNote()
-  ipcRenderer.send('open-lockin', {
-    mode: 'write',
-    content: document.getElementById('idea-area').value,
-    title: document.getElementById('note-title').value,
-    filepath: current.filepath
-  })
 }
 
-function openLockInPlan() {
-  const current = currentPlanNote
-  if (!current) return
-  saveCurrentNote()
-  ipcRenderer.send('open-lockin-plan', {
-    content: document.getElementById('admin-area').value,
-    title: document.getElementById('note-title').value,
-    filepath: current.filepath
-  })
-}
+function openLockInPlan() { openLockIn() }
 
-ipcRenderer.on('lockin-plan-closed', (event, data) => {
-  if (!data) return
-  if (currentPlanNote) {
-    document.getElementById('admin-area').value = data.braindump || ''
-    autoSave()
-  }
-})
-    
-ipcRenderer.on('lockin-closed', (event, updatedContent) => {
-  if (!updatedContent) return
-  if (currentMode === 'write' && currentWriteNote) {
-    document.getElementById('idea-area').value = updatedContent
-    updateSyllableOverlay()
-  } else if (currentMode === 'plan' && currentPlanNote) {
-    document.getElementById('admin-area').value = updatedContent
-  }
-  autoSave()
-})
 function rescheduleReminders() {
   const allReminders = []
   const now = new Date()
@@ -705,73 +634,342 @@ function rescheduleReminders() {
   if (allReminders.length > 0) ipcRenderer.send('reschedule-reminders', allReminders)
 }
 
+// ── TAB SYSTEM ──
+function emptyTab(mode) {
+  return {
+    filename: null, filepath: null, mode: mode || newTabMode,
+    title: '', idea: '', context: '', tags: [],
+    planContext: '', admin: '', tasks: []
+  }
+}
+
+function getDirForMode(mode) {
+  if (mode === 'plan') return PLAN_DIR
+  if (mode === 'project') return PROJECTS_DIR
+  if (mode === 'longform') return LONGFORM_DIR
+  return WRITE_DIR
+}
+
+function getColorForMode(mode) {
+  if (mode === 'plan') return '#4caf7d'
+  if (mode === 'project') return '#7f77dd'
+  if (mode === 'longform') return '#378add'
+  return '#c8922a'
+}
+
+function saveCurrentTab() {
+  if (!tabs[currentTabIndex]) return
+  const tab = tabs[currentTabIndex]
+  tab.title = document.getElementById('note-title').value || ''
+
+  if (tab.mode === 'write') {
+    tab.idea    = document.getElementById('idea-area').value
+    tab.context = document.getElementById('context-area').value
+    tab.tags    = currentTags()
+  } else {
+    tab.planContext = document.getElementById('plan-context-input').value
+    tab.admin       = document.getElementById('admin-area').value
+    tab.tasks       = getTasksFromDOM()
+  }
+
+  // write to disk
+  if (tab.filepath) {
+    try { fs.writeFileSync(tab.filepath, serializeTab(tab), 'utf8') } catch(e) {}
+  }
+}
+
+function currentTags() {
+  return Array.from(document.querySelectorAll('.tag')).map(t =>
+    t.childNodes[0].textContent.trim()
+  ).filter(Boolean)
+}
+
+function serializeTab(tab) {
+  if (tab.mode === 'write') {
+    return `# ${tab.title || 'untitled'}\ntype: write\ntags: ${(tab.tags||[]).join(', ')}\n\n## idea\n${tab.idea || ''}\n\n## context\n${tab.context || ''}\n`
+  } else {
+    let md = `# ${tab.title || 'untitled'}\ntype: plan\ncontext1: ${tab.planContext || ''}\n\n## admin\n${tab.admin || ''}\n\n## tasks\n`
+    ;(tab.tasks || []).forEach(t => {
+      md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+      if (t.reminder) md += `  reminder: ${t.reminder}\n`
+    })
+    return md
+  }
+}
+
+function loadTabIntoDOM(tab) {
+  document.getElementById('note-title').value = tab.title || ''
+  document.getElementById('note-meta').textContent = tab.filepath ? formatMeta(tab.filepath) : ''
+
+  // show correct panel
+  const isWriteLike = tab.mode === 'write' || tab.mode === 'longform'
+  document.getElementById('panel-write').classList.toggle('active', isWriteLike)
+  document.getElementById('panel-plan').classList.toggle('active', !isWriteLike)
+
+  if (isWriteLike) {
+    document.getElementById('idea-area').value = tab.idea || ''
+    document.getElementById('context-area').value = tab.context || ''
+    renderTagsFromArray(tab.tags || [])
+    updateSyllableOverlay()
+    setTimeout(() => document.getElementById('idea-area').focus(), 50)
+  } else {
+    document.getElementById('plan-context-input').value = tab.planContext || ''
+    document.getElementById('admin-area').value = tab.admin || ''
+    renderTasks(tab.tasks || [])
+    setTimeout(() => document.getElementById('admin-area').focus(), 50)
+  }
+}
+
+function switchTab(index) {
+  if (index === currentTabIndex && tabs[index]) return
+  saveCurrentTab()
+  currentTabIndex = index
+  loadTabIntoDOM(tabs[currentTabIndex])
+  renderTabBar()
+  saveTabPrefs()
+}
+
+function newTab() {
+  saveCurrentTab()
+  const tab = emptyTab(newTabMode)
+  createNoteFile(tab)
+  tabs.push(tab)
+  currentTabIndex = tabs.length - 1
+  loadTabIntoDOM(tab)
+  renderTabBar()
+  saveTabPrefs()
+  document.getElementById('note-title').focus()
+}
+
+function closeTab(index) {
+  if (tabs.length === 1) {
+    // don't close last tab, just clear it
+    saveCurrentTab()
+    const tab = emptyTab(newTabMode)
+    createNoteFile(tab)
+    tabs[0] = tab
+    currentTabIndex = 0
+    loadTabIntoDOM(tab)
+    renderTabBar()
+    saveTabPrefs()
+    return
+  }
+
+  saveCurrentTab()
+  tabs.splice(index, 1)
+  if (currentTabIndex >= tabs.length) currentTabIndex = tabs.length - 1
+  loadTabIntoDOM(tabs[currentTabIndex])
+  renderTabBar()
+  saveTabPrefs()
+}
+
+function renderTabBar() {
+  const bar = document.getElementById('tab-bar')
+  const addBtn = document.getElementById('tab-add')
+  bar.querySelectorAll('.tab').forEach(t => t.remove())
+
+  tabs.filter(tab => tab.mode === newTabMode).forEach((tab, i) => {
+    const realIndex = tabs.indexOf(tab)
+    const el = document.createElement('div')
+   el.className = 'tab' + (realIndex === currentTabIndex ? ' active' : '')
+
+    const dot = document.createElement('div')
+    dot.className = 'tab-dot'
+    dot.style.background = getColorForMode(tab.mode)
+
+    const title = document.createElement('div')
+    title.className = 'tab-title'
+    title.textContent = tab.title || 'untitled'
+
+    const close = document.createElement('div')
+    close.className = 'tab-close'
+    close.textContent = '×'
+    close.onclick = (e) => { e.stopPropagation(); closeTab(realIndex) }
+
+    el.appendChild(dot)
+    el.appendChild(title)
+    el.appendChild(close)
+   el.onclick = () => switchTab(realIndex)
+
+    bar.insertBefore(el, addBtn)
+  })
+
+  // update mode toggle to reflect current tab
+  const currentMode = tabs[currentTabIndex]?.mode || newTabMode
+  ;['write','plan','project','longform'].forEach(m => {
+    const btn = document.getElementById('btn-' + m)
+    if (btn) btn.classList.toggle('active', m === currentMode)
+  })}
+
+function setNewTabMode(mode) {
+  newTabMode = mode
+  ;['write','plan'].forEach(m => {
+    const btn = document.getElementById('btn-' + m)
+    if (btn) btn.classList.toggle('active', m === mode)
+  })
+
+  // switch to most recent tab of this mode
+  const modeTabIndex = tabs.reduce((found, tab, i) => {
+    if (tab.mode === mode) return i
+    return found
+  }, -1)
+
+  if (modeTabIndex !== -1) {
+    switchTab(modeTabIndex)
+  }
+
+  renderTabBar()
+}
+
+function createNoteFile(tab) {
+  const dir = getDirForMode(tab.mode)
+  const now = new Date()
+  const stamp = now.toISOString().slice(0,16).replace('T','_').replace(':','-')
+  const filename = `${stamp}.md`
+  const filepath = path.join(dir, filename)
+  tab.filename = filename
+  tab.filepath = filepath
+  tab.title = formatDateTitle(now)
+  const content = serializeTab(tab)
+  try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+}
+
+// ── TAB PREFS ──
+function saveTabPrefs() {
+  try {
+    const prefs = loadPrefs()
+    prefs.tabs = tabs.map(t => ({ filename: t.filename, mode: t.mode, filepath: t.filepath }))
+    prefs.currentTabIndex = currentTabIndex
+    fs.writeFileSync(path.join(NOTES_DIR, 'prefs.json'), JSON.stringify(prefs, null, 2), 'utf8')
+  } catch(e) {}
+}
+
+function loadPrefs() {
+  try {
+    const p = path.join(NOTES_DIR, 'prefs.json')
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'))
+  } catch(e) {}
+  return {}
+}
+
 // ── INIT ──
 function init() {
   loadCMU()
   loadWordNet()
   loadBibleIndex()
   ensureDirs()
-  loadAndOpenLatest('write')
-  loadAndOpenLatest('plan')
-  setMode('write')
+
+  const prefs = loadPrefs()
+  if (prefs.winMode) { winModeState = prefs.winMode; updateWinModeBtns() }
+
+  // restore tabs from prefs
+  const savedTabs = prefs.tabs || []
+  if (savedTabs.length > 0) {
+    savedTabs.forEach(saved => {
+      if (saved.filepath && fs.existsSync(saved.filepath)) {
+        const tab = emptyTab(saved.mode)
+        tab.filename = saved.filename
+        tab.filepath = saved.filepath
+        const raw = fs.readFileSync(saved.filepath, 'utf8')
+        const parsed = parseNote(raw, saved.mode)
+        Object.assign(tab, parsed)
+        tabs.push(tab)
+      }
+    })
+  }
+
+  if (tabs.length === 0) {
+    // open latest write and plan notes as first two tabs
+    const writeFiles = getNotesList('write')
+    const planFiles  = getNotesList('plan')
+
+    if (writeFiles.length > 0) {
+      const tab = loadNoteAsTab(writeFiles[0], 'write')
+      if (tab) tabs.push(tab)
+    }
+    if (planFiles.length > 0) {
+      const tab = loadNoteAsTab(planFiles[0], 'plan')
+      if (tab) tabs.push(tab)
+    }
+    if (tabs.length === 0) {
+      const tab = emptyTab('write')
+      createNoteFile(tab)
+      tabs.push(tab)
+    }
+  }
+
+  currentTabIndex = Math.min(prefs.currentTabIndex || 0, tabs.length - 1)
+  loadTabIntoDOM(tabs[currentTabIndex])
+  renderTabBar()
   bindKeys()
   bindSelection()
+  rescheduleReminders()
 
   ipcRenderer.on('load-note', (event, { filename, mode }) => {
-    setMode(mode); loadNote(filename, mode)
-  })
-
-  ipcRenderer.on('new-note', (event, mode) => {
-    setMode(mode); newNote()
-  })
-
-  ipcRenderer.on('reminder-set', (event, data) => {
-    if (data.ok) {
-      if (currentReminderRow) {
-        const btn  = currentReminderRow.querySelector('.task-reminder-btn')
-        const info = currentReminderRow.querySelector('.task-reminder-info')
-        const dot  = currentReminderRow.querySelector('.reminder-dot')
-        const isoString = `${data.date}T${data.time}`
-        currentReminderRow.dataset.reminder = isoString
-        if (btn)  { btn.textContent = 'edit reminder'; btn.classList.add('set') }
-        if (dot)  dot.style.display = 'block'
-        if (info) {
-          const d = new Date(isoString)
-          info.textContent = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${d.getFullYear().toString().slice(2)} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`
-        }
-        autoSave()
-      }
-      closeReminder()
-      currentReminderRow = null
-    } else {
-      alert('Could not set reminder: ' + data.reason)
-      currentReminderRow = null
+    // open in a new tab
+    saveCurrentTab()
+    const tab = loadNoteAsTab(filename, mode)
+    if (tab) {
+      tabs.push(tab)
+      currentTabIndex = tabs.length - 1
+      loadTabIntoDOM(tab)
+      renderTabBar()
+      saveTabPrefs()
     }
   })
 
-  try {
-    const prefs = JSON.parse(fs.readFileSync(path.join(NOTES_DIR,'prefs.json'),'utf8'))
-    if (prefs.winMode) { winModeState = prefs.winMode; updateWinModeBtns() }
-  } catch(e) {}
+  ipcRenderer.on('new-note', (event, mode) => {
+    newTabMode = mode
+    newTab()
+  })
 
-  rescheduleReminders()
+  ipcRenderer.on('lockin-closed', (event, updatedContent) => {
+    if (!updatedContent) return
+    const tab = tabs[currentTabIndex]
+    if (!tab) return
+    if (tab.mode === 'write') {
+      tab.idea = updatedContent
+      document.getElementById('idea-area').value = updatedContent
+      updateSyllableOverlay()
+    } else {
+      tab.admin = updatedContent
+      document.getElementById('admin-area').value = updatedContent
+    }
+    autoSave()
+  })
+
+  ipcRenderer.on('lockin-plan-closed', (event, data) => {
+    // Lock In plan is independent — just close, no data merge needed
+  })
+
+  ipcRenderer.on('add-selection-as-task', (event, text) => {
+    // find or create a plan tab
+    let planTabIndex = tabs.findIndex(t => t.mode === 'plan')
+    if (planTabIndex === -1) {
+      saveCurrentTab()
+      const tab = emptyTab('plan')
+      createNoteFile(tab)
+      tabs.push(tab)
+      planTabIndex = tabs.length - 1
+    }
+    switchTab(planTabIndex)
+    addTask(text, false, null)
+    updateTaskCount()
+    autoSave()
+  })
 }
 
+const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
+const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
+
 function ensureDirs() {
-  [NOTES_DIR, WRITE_DIR, PLAN_DIR].forEach(d => {
+  [NOTES_DIR, WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].forEach(d => {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true })
   })
 }
 
-function loadAndOpenLatest(mode) {
-  const files = getNotesList(mode)
-  if (!files.length) createNewNote(mode)
-  else loadNote(files[0], mode)
-}
-
-// ── NOTES ──
 function getNotesList(mode) {
-  const dir = mode === 'write' ? WRITE_DIR : PLAN_DIR
+  const dir = getDirForMode(mode)
   try {
     return fs.readdirSync(dir)
       .filter(f => f.endsWith('.md'))
@@ -783,42 +981,26 @@ function getNotesList(mode) {
   } catch(e) { return [] }
 }
 
-function loadNote(filename, mode) {
-  const dir = mode === 'write' ? WRITE_DIR : PLAN_DIR
+function loadNoteAsTab(filename, mode) {
+  const dir = getDirForMode(mode)
   const filepath = path.join(dir, filename)
-  if (!fs.existsSync(filepath)) return
+  if (!fs.existsSync(filepath)) return null
   const raw = fs.readFileSync(filepath, 'utf8')
-  const parsed = parseNote(raw)
-  const noteObj = { filename, filepath, mode, ...parsed }
-  if (mode === 'write') currentWriteNote = noteObj
-  else currentPlanNote = noteObj
-  if (mode === currentMode) populateUI(noteObj, mode)
+  const tab = emptyTab(mode)
+  tab.filename = filename
+  tab.filepath = filepath
+  const parsed = parseNote(raw, mode)
+  Object.assign(tab, parsed)
+  return tab
 }
 
-function populateUI(noteObj, mode) {
-  document.getElementById('note-title').value = noteObj.title || ''
-  document.getElementById('note-meta').textContent = formatMeta(noteObj.filepath)
-
-  if (mode === 'write') {
-    document.getElementById('idea-area').value = noteObj.idea || ''
-    document.getElementById('context-area').value = noteObj.context || ''
-    tags = noteObj.tags || []
-    renderTags()
-    updateSyllableOverlay()
-  } else {
-    document.getElementById('plan-context-input').value = noteObj.planContext || ''
-    document.getElementById('admin-area').value = noteObj.admin || ''
-    renderTasks(noteObj.tasks || [])
-  }
-}
-
-function parseNote(raw) {
+function parseNote(raw, mode) {
   const lines = raw.split('\n')
   let title='', idea='', context='', admin='', planContext=''
   let tags=[], tasks=[], section=''
 
   lines.forEach(line => {
-    if (line.startsWith('# '))          { title = line.slice(2); return }
+    if (line.startsWith('# '))          { title = line.slice(2).trim(); return }
     if (line.startsWith('type: '))      { return }
     if (line.startsWith('tags: '))      { tags = line.slice(6).split(',').map(t=>t.trim()).filter(Boolean); return }
     if (line.startsWith('context1: ')) { planContext = line.slice(10); return }
@@ -841,62 +1023,22 @@ function parseNote(raw) {
   return { title, idea: idea.trim(), context: context.trim(), admin: admin.trim(), planContext, tags, tasks }
 }
 
-function serializeNote(mode) {
-  const title = document.getElementById('note-title').value || 'untitled'
-
-  if (mode === 'write') {
-    const idea    = document.getElementById('idea-area').value
-    const context = document.getElementById('context-area').value
-    return `# ${title}\ntype: write\ntags: ${tags.join(', ')}\n\n## idea\n${idea}\n\n## context\n${context}\n`
-  } else {
-    const planContext = document.getElementById('plan-context-input').value
-    const admin = document.getElementById('admin-area').value
-    const taskItems = getTasksFromDOM()
-    let md = `# ${title}\ntype: plan\ncontext1: ${planContext}\n\n## admin\n${admin}\n\n## tasks\n`
-    taskItems.forEach(t => {
-      md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
-      if (t.reminder) md += `  reminder: ${t.reminder}\n`
-    })
-    return md
-  }
-}
-
-function saveCurrentNote() {
-  if (currentMode === 'write' && currentWriteNote) {
-    fs.writeFileSync(currentWriteNote.filepath, serializeNote('write'), 'utf8')
-  } else if (currentMode === 'plan' && currentPlanNote) {
-    fs.writeFileSync(currentPlanNote.filepath, serializeNote('plan'), 'utf8')
-  }
-}
-
 function autoSave() {
   clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
-    saveCurrentNote()
-    const meta = document.getElementById('note-meta')
-    const current = currentMode === 'write' ? currentWriteNote : currentPlanNote
-    if (current) meta.textContent = formatMeta(current.filepath)
+    saveCurrentTab()
+    const tab = tabs[currentTabIndex]
+    if (tab?.filepath) {
+      document.getElementById('note-meta').textContent = formatMeta(tab.filepath)
+    }
+    // update tab title in bar
+    renderTabBar()
   }, 800)
 }
 
-function newNote() { saveCurrentNote(); createNewNote(currentMode) }
+function saveCurrentNote() { saveCurrentTab() }
 
-function createNewNote(mode) {
-  const dir = mode === 'write' ? WRITE_DIR : PLAN_DIR
-  const now = new Date()
-  const stamp = now.toISOString().slice(0,16).replace('T','_').replace(':','-')
-  const filename = `${stamp}.md`
-  const filepath = path.join(dir, filename)
-  const title = formatDateTitle(now)
-  const content = mode === 'write'
-    ? `# ${title}\ntype: write\ntags: \n\n## idea\n\n## context\n`
-    : `# ${title}\ntype: plan\ncontext1: \n\n## admin\n\n## tasks\n`
-  fs.writeFileSync(filepath, content, 'utf8')
-  const noteObj = { filename, filepath, mode, title, idea:'', context:'', planContext:'', admin:'', tags:[], tasks:[] }
-  if (mode === 'write') currentWriteNote = noteObj
-  else currentPlanNote = noteObj
-  if (mode === currentMode) populateUI(noteObj, mode)
-}
+function newNote() { newTab() }
 
 function formatDateTitle(d) {
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -911,36 +1053,24 @@ function formatMeta(filepath) {
   } catch(e) { return '' }
 }
 
-// ── MODE ──
-function setMode(mode) {
-  currentMode = mode
-  document.getElementById('panel-write').classList.toggle('active', mode === 'write')
-  document.getElementById('panel-plan').classList.toggle('active',  mode === 'plan')
-  document.getElementById('btn-write').classList.toggle('active',   mode === 'write')
-  document.getElementById('btn-plan').classList.toggle('active',    mode === 'plan')
-  const current = mode === 'write' ? currentWriteNote : currentPlanNote
-  if (current) populateUI(current, mode)
-  setTimeout(() => {
-    if (mode === 'write') document.getElementById('idea-area').focus()
-    else document.getElementById('admin-area').focus()
-  }, 50)
-}
-
 // ── TAGS ──
+let tags = []
+
 function showTagInput() {
   const input = document.getElementById('tag-input')
   input.style.display = 'block'; input.focus()
   input.onkeydown = e => {
     if (e.key === 'Enter') {
       const val = input.value.trim()
-      if (val && !tags.includes(val)) { tags.push(val); renderTags(); autoSave() }
+      if (val) { tags.push(val); renderTagsFromArray(tags); autoSave() }
       input.value = ''; input.style.display = 'none'
     }
     if (e.key === 'Escape') { input.value = ''; input.style.display = 'none' }
   }
 }
 
-function renderTags() {
+function renderTagsFromArray(tagArray) {
+  tags = tagArray || []
   const row = document.getElementById('tags-row')
   const input = document.getElementById('tag-input')
   row.querySelectorAll('.tag').forEach(t => t.remove())
@@ -949,7 +1079,9 @@ function renderTags() {
     chip.className = 'tag'
     chip.innerHTML = `${tag}<span class="tag-x" title="remove">×</span>`
     chip.querySelector('.tag-x').onclick = e => {
-      e.stopPropagation(); tags = tags.filter(t => t !== tag); renderTags(); autoSave()
+      e.stopPropagation()
+      tags = tags.filter(t => t !== tag)
+      renderTagsFromArray(tags); autoSave()
     }
     row.insertBefore(chip, input)
   })
@@ -957,28 +1089,21 @@ function renderTags() {
 
 // ── TASK EXTRACTION ──
 const ACTION_WORDS = [
-  'activate','add','address','alert','analyze','announce','approve','arrange','artwork','assess','assign','attend','audit',
-'backup','book','brainstorm','bring','budget','build',
-'calculate','call','campaign','cancel','caption','categorize','charge','check','clean','clear','clip','close','close out','complete','complete form','configure','confirm','connect','contact','coordinate','copy','cover','create',
-'debug','decide','delegate','deliver','deactivate','demo','deploy','design','discuss','document','download','draft','drop','drop off','drive',
-'edit','edit video','email','enroll','escalate','estimate','evaluate','exchange','export',
-'file','film','finalize','finish','fix','flag','follow','follow up','follow-up','forward',
-'get','graphic',
-'hand off','handle','hashtag','hire',
-'ideate','initiate','install','integrate','interview','invite',
-'join',
-'label','launch','layout','lead','listen','log',
-'manage','measure','meet','memorize','message','migrate','mockup','monitor','move',
-'need to','needs to','have to','has to','must','should','ought to','supposed to','remind me to','don\'t forget to','make sure to','remember to','set reminder',
-'notify',
-'onboard','open','order','organize','outline',
-'pack','patch','pay','payment','pick up','ping','pitch','plan','post','practice','prepare','present','print','promote','proof','publish','purchase',
-'reach out','read','rebrand','record','refund','register','reimburse','release','remind','remove','renew','repurpose','reply','report','request','research','resolve','respond','return','revise','render',
-'scan','schedule','send','set up','share','ship','sign','sort','story','study','submit','submit form','swap','sync',
-'tag','take','test','text','thumbnail','track','train','transfer','trim','troubleshoot',
-'unload','unpack','unsubscribe','update','upgrade','upload',
-'validate','verify','vote',
-'watch','wireframe','wrap','wrap up','write',
+  'need to','needs to','have to','has to','must','should',
+  'call','text','email','send','write','finish','complete',
+  'schedule','book','order','buy','get','pick up','drop off',
+  'follow up','follow-up','reach out','contact','remind',
+  'submit','review','edit','update','fix','check','confirm',
+  'prepare','plan','arrange','organize','set up','demo',
+  'record','print','deliver','return','pay','invoice',
+  'add','promote','announce','post','share','upload','download',
+  'research','draft','pitch','present','assign','delegate',
+  'approve','request','respond','reply','forward','create',
+  'build','design','launch','test','finalize','publish',
+  'message','meet','interview','follow','connect','invite',
+  'coordinate','manage','lead','train','film','edit video',
+  'export','render','caption','thumbnail','graphic','artwork',
+  'budget','quote','invoice','deposit','payment'
 ]
 
 const TIME_WORDS = [
@@ -1066,20 +1191,15 @@ function addTask(text, done=false, reminder=null) {
     } catch(e) {}
   }
 
- const deleteBtn = document.createElement('button')
-deleteBtn.className = 'task-reminder-btn'
-deleteBtn.textContent = '×'
-deleteBtn.style.marginLeft = 'auto'
-deleteBtn.onclick = () => {
-  row.remove()
-  updateTaskCount()
-  autoSave()
-}
+  const deleteBtn = document.createElement('button')
+  deleteBtn.className = 'task-delete-btn'
+  deleteBtn.textContent = '×'
+  deleteBtn.onclick = () => { row.remove(); updateTaskCount(); autoSave() }
 
-actions.appendChild(dot)
-actions.appendChild(reminderBtn)
-actions.appendChild(reminderInfo)
-actions.appendChild(deleteBtn)
+  actions.appendChild(dot)
+  actions.appendChild(reminderBtn)
+  actions.appendChild(reminderInfo)
+  actions.appendChild(deleteBtn)
   body.appendChild(label)
   body.appendChild(actions)
 
@@ -1166,6 +1286,30 @@ function setReminder() {
   ipcRenderer.send('schedule-reminder', { title: task, date, time })
 }
 
+ipcRenderer.on('reminder-set', (event, data) => {
+  if (data.ok) {
+    if (currentReminderRow) {
+      const btn  = currentReminderRow.querySelector('.task-reminder-btn')
+      const info = currentReminderRow.querySelector('.task-reminder-info')
+      const dot  = currentReminderRow.querySelector('.reminder-dot')
+      const isoString = `${data.date}T${data.time}`
+      currentReminderRow.dataset.reminder = isoString
+      if (btn)  { btn.textContent = 'edit reminder'; btn.classList.add('set') }
+      if (dot)  dot.style.display = 'block'
+      if (info) {
+        const d = new Date(isoString)
+        info.textContent = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${d.getFullYear().toString().slice(2)} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`
+      }
+      autoSave()
+    }
+    closeReminder()
+    currentReminderRow = null
+  } else {
+    alert('Could not set reminder: ' + data.reason)
+    currentReminderRow = null
+  }
+})
+
 // ── KEYBOARD ──
 function bindKeys() {
   document.getElementById('idea-area').addEventListener('keydown', handleBullet)
@@ -1177,31 +1321,37 @@ function bindKeys() {
     if (e.key === 'r' && e.metaKey) { e.preventDefault(); openReminders() }
     if (e.key === 'b' && e.metaKey) { e.preventDefault(); fmtToggle('**') }
     if (e.key === 'i' && e.metaKey) { e.preventDefault(); fmtToggle('_') }
+    if (e.key === 't' && e.metaKey) { e.preventDefault(); newTab() }
 
     if (e.key === 'Tab' && !['TEXTAREA','INPUT'].includes(document.activeElement.tagName)) {
       e.preventDefault()
-      setMode(currentMode === 'write' ? 'plan' : 'write')
+      // cycle through tabs
+      const next = (currentTabIndex + 1) % tabs.length
+      switchTab(next)
     }
 
     if (e.key === 's' && e.metaKey) {
       e.preventDefault()
-      saveCurrentNote()
+      saveCurrentTab()
       const meta = document.getElementById('note-meta')
-      const current = currentMode === 'write' ? currentWriteNote : currentPlanNote
+      const tab = tabs[currentTabIndex]
       meta.textContent = 'saved ✓'
-      setTimeout(() => { if (current) meta.textContent = formatMeta(current.filepath) }, 1500)
+      setTimeout(() => { if (tab?.filepath) meta.textContent = formatMeta(tab.filepath) }, 1500)
     }
 
-    if (e.key === 'n' && e.metaKey) { e.preventDefault(); newNote() }
+    if (e.key === 'n' && e.metaKey) { e.preventDefault(); newTab() }
   })
 
   document.getElementById('idea-area').addEventListener('input', () => {
-    autoSave(); updateSyllableOverlay(); if (schemeVisible) updateScheme()
+    autoSave(); updateSyllableOverlay()
   })
   document.getElementById('context-area').addEventListener('input', autoSave)
   document.getElementById('admin-area').addEventListener('input', autoSave)
   document.getElementById('plan-context-input').addEventListener('input', autoSave)
-  document.getElementById('note-title').addEventListener('input', autoSave)
+  document.getElementById('note-title').addEventListener('input', () => {
+    if (tabs[currentTabIndex]) tabs[currentTabIndex].title = document.getElementById('note-title').value
+    autoSave()
+  })
 }
 
 // ── SELECTION → DRAWER ──

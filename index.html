@@ -58,22 +58,17 @@
 
     .topbar-icon-btn {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 15px; padding: 2px 8px;
+      font-size: 15px; padding: 0;
       border-radius: 5px; border: 0.5px solid var(--border2);
       color: var(--text2); background: transparent;
       cursor: pointer; flex-shrink: 0; transition: all 0.15s;
-      line-height: 1.5; outline: none;
-      display: flex; align-items: center; justify-content: center;
-      width: 30px; height: 26px;
+      outline: none; display: flex; align-items: center;
+      justify-content: center; width: 30px; height: 26px;
     }
 
     .topbar-icon-btn:hover { color: var(--accent); border-color: var(--accent2); }
     .topbar-icon-btn img { display: block; width: 14px; height: 14px; opacity: 0.65; transition: opacity 0.15s; }
     .topbar-icon-btn:hover img { opacity: 1; }
-
-    #mode-toggle {
-      display: flex; border: 0.5px solid var(--border); border-radius: 5px; overflow: hidden;
-    }
 
     .mode-btn {
       font-family: 'JetBrains Mono', monospace; font-size: 10px;
@@ -82,22 +77,82 @@
       border: none; cursor: pointer; transition: all 0.15s; outline: none;
     }
 
+    #mode-toggle {
+      display: flex; border: 0.5px solid var(--border); border-radius: 5px; overflow: hidden;
+    }
+
     .mode-btn.active { background: var(--accent); color: #1c1c1e; font-weight: 500; }
     .mode-btn:hover:not(.active) { color: var(--text); background: var(--bg2); }
 
-    /* ── TITLE BAR ── */
-    #note-title-bar {
-      padding: 9px 13px 8px; border-bottom: 0.5px solid var(--border); flex-shrink: 0;
+    /* ── TAB BAR ── */
+    #tab-bar {
+      display: flex; align-items: center;
+      border-bottom: 0.5px solid var(--border);
+      background: var(--bg); flex-shrink: 0;
+      overflow-x: auto; overflow-y: hidden;
+      -webkit-app-region: no-drag;
+      min-height: 34px;
+    }
+
+    #tab-bar::-webkit-scrollbar { height: 2px; }
+    #tab-bar::-webkit-scrollbar-thumb { background: var(--border2); }
+
+    .tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 12px; height: 34px; flex-shrink: 0;
+      border-right: 0.5px solid var(--border);
+      cursor: pointer; transition: background 0.12s;
+      max-width: 160px; min-width: 80px;
+      position: relative;
+    }
+
+    .tab:hover { background: var(--bg2); }
+    .tab.active { background: var(--bg2); }
+
+    .tab-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    .tab-title {
+      font-size: 10px; color: var(--text2); overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; flex: 1;
+      letter-spacing: 0.03em;
+    }
+
+    .tab.active .tab-title { color: var(--text); }
+
+    .tab-close {
+      font-size: 12px; color: var(--text3); cursor: pointer;
+      flex-shrink: 0; line-height: 1; padding: 1px 2px;
+      border-radius: 3px; transition: all 0.12s;
+    }
+
+    .tab-close:hover { color: var(--danger); background: rgba(192,57,43,0.1); }
+
+    #tab-add {
+      font-size: 16px; color: var(--text3); background: transparent;
+      border: none; cursor: pointer; padding: 0 12px; height: 34px;
+      flex-shrink: 0; outline: none; transition: color 0.15s;
+      font-family: 'JetBrains Mono', monospace; line-height: 1;
+    }
+
+    #tab-add:hover { color: var(--accent); }
+
+    /* ── NOTE META ── */
+    #note-meta-bar {
+      padding: 5px 13px; border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0; display: flex; align-items: center; gap: 8px;
     }
 
     #note-title {
-      font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500;
-      color: var(--text); background: transparent; border: none; outline: none;
-      width: 100%; -webkit-user-select: text; user-select: text;
+      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      font-weight: 500; color: var(--text); background: transparent;
+      border: none; outline: none; flex: 1;
+      -webkit-user-select: text; user-select: text;
     }
 
     #note-title::placeholder { color: var(--text3); }
-    #note-meta { font-size: 10px; color: var(--text3); margin-top: 3px; letter-spacing: 0.03em; }
+    #note-meta { font-size: 10px; color: var(--text3); letter-spacing: 0.03em; flex-shrink: 0; }
 
     /* ── PANELS ── */
     #panel-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -426,6 +481,15 @@
       background: var(--accent); flex-shrink: 0; margin-top: 4px;
     }
 
+    .task-delete-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      color: var(--text3); background: transparent; border: none;
+      cursor: pointer; padding: 0 3px; outline: none;
+      transition: color 0.12s; margin-left: auto;
+    }
+
+    .task-delete-btn:hover { color: var(--danger); }
+
     .empty-tasks {
       font-size: 11px; color: var(--text3); font-style: italic;
       padding: 12px 0; text-align: center;
@@ -471,20 +535,26 @@
   <div id="topbar">
     <span id="app-name">S†AVE</span>
     <div class="topbar-right">
-      <button class="topbar-icon-btn" onclick="newNote()" title="new note (⌘N)">+</button>
       <button class="topbar-icon-btn" onclick="openSearch()" title="search notes (⌘F)">⌕</button>
       <button class="topbar-icon-btn" onclick="openReminders()" title="reminders (⌘R)" style="padding:0;">
         <img src="bell-transparent.png" width="14" height="14">
       </button>
-    <button class="mode-btn" onclick="openLockIn()" style="border-radius:5px;border:0.5px solid var(--border);margin-right:3px;">lock in</button>
+      <button class="topbar-icon-btn" onclick="openLockIn()" title="lock in" style="width:auto;padding:2px 8px;font-size:10px;letter-spacing:0.05em;">lock in</button>
       <div id="mode-toggle">
-        <button class="mode-btn active" id="btn-write" onclick="setMode('write')">write</button>
-        <button class="mode-btn" id="btn-plan" onclick="setMode('plan')">plan</button>
-      </div>
+  <button class="mode-btn active" id="btn-write" onclick="setNewTabMode('write')">write</button>
+  <button class="mode-btn" id="btn-plan" onclick="setNewTabMode('plan')">plan</button>
+  
+</div>
+      
     </div>
   </div>
 
-  <div id="note-title-bar">
+  <!-- TAB BAR -->
+  <div id="tab-bar">
+    <button id="tab-add" onclick="newTab()" title="new tab (⌘T)">+</button>
+  </div>
+
+  <div id="note-meta-bar">
     <input id="note-title" placeholder="untitled..." spellcheck="false">
     <div id="note-meta"></div>
   </div>
@@ -511,10 +581,9 @@
         </div>
       </div>
       <div class="panel-footer">
-        
         <button class="btn" onclick="showMarkdownHint()">?</button>
         <div class="footer-spacer"></div>
-        <span class="footer-hint">⌘b bold · ⌘i italic · ⌘n new · ⌘f search</span>
+        <span class="footer-hint">⌘b bold · ⌘i italic · ⌘t new tab · ⌘f search</span>
         <button class="btn" onclick="exportPDF()">export</button>
         <button id="win-mode-btn" onclick="cycleWinMode()">hide</button>
       </div>
@@ -523,7 +592,7 @@
         <div style="font-size:9px;font-weight:500;letter-spacing:0.12em;color:var(--text3);text-transform:uppercase;margin-bottom:6px;">markdown shortcuts</div>
         <div><span style="color:var(--accent)">⌘B</span> &nbsp;**bold**</div>
         <div><span style="color:var(--accent)">⌘I</span> &nbsp;_italic_</div>
-        <div>> line &nbsp;·&nbsp; - bullet (auto •)</div>
+        <div>&gt; line &nbsp;·&nbsp; - bullet (auto •)</div>
         <div style="margin-top:6px;cursor:pointer;color:var(--text3);" onclick="hideMarkdownHint()">close</div>
       </div>
 
@@ -568,7 +637,7 @@
       <div class="panel-footer" style="position:relative;">
         <button class="btn" onclick="extractTasks()">extract tasks</button>
         <div class="footer-spacer"></div>
-        <span class="footer-hint">tab · ⌘n · ⌘f · ⌘s</span>
+        <span class="footer-hint">⌘t new tab · ⌘f search · ⌘s save</span>
         <button id="win-mode-btn-plan" onclick="cycleWinMode()">hide</button>
         <div id="reminder-popup">
           <div class="reminder-title">reminder: <strong id="reminder-task-label"></strong></div>
