@@ -805,7 +805,6 @@ function populateUI(noteObj, mode) {
     tags = noteObj.tags || []
     renderTags()
     updateSyllableOverlay()
-    if (schemeVisible) updateScheme()
   } else {
     document.getElementById('plan-context-input').value = noteObj.planContext || ''
     document.getElementById('admin-area').value = noteObj.admin || ''
