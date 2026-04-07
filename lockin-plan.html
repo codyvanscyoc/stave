@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lock In — Plan</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #1c1c1e;
+      --bg2:      #252528;
+      --bg3:      #2e2e32;
+      --border:   rgba(255,255,255,0.07);
+      --border2:  rgba(255,255,255,0.13);
+      --text:     #f0e8d8;
+      --text2:    #9a9080;
+      --text3:    #4e4a44;
+      --accent:   #c8922a;
+      --accent2:  #a07420;
+      --accentbg: rgba(200,146,42,0.10);
+      --success:  #4caf7d;
+      --danger:   #c0392b;
+    }
+
+    html, body {
+      width: 100%; height: 100vh; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* ── TOP BAR ── */
+    #top-bar {
+      position: fixed; top: 0; left: 0; right: 0; height: 46px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 20px; background: var(--bg);
+      border-bottom: 0.5px solid var(--border);
+      -webkit-app-region: drag; z-index: 100;
+    }
+
+    #stave-mark {
+      font-size: 12px; font-weight: 500; color: var(--accent);
+      opacity: 0.35; letter-spacing: 0.1em;
+      -webkit-app-region: no-drag;
+    }
+
+    #project-name-input {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; font-weight: 500;
+      color: var(--text); background: transparent;
+      border: none; outline: none; flex: 1;
+      -webkit-user-select: text; user-select: text;
+      -webkit-app-region: no-drag;
+    }
+
+    #project-name-input::placeholder { color: var(--text3); }
+
+    #exit-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 4px 12px; border-radius: 5px;
+      border: 0.5px solid var(--text3); color: var(--text3);
+      background: transparent; cursor: pointer;
+      transition: all 0.15s; -webkit-app-region: no-drag; outline: none;
+    }
+
+    #exit-btn:hover { color: var(--text); border-color: var(--text2); }
+
+    /* ── MAIN LAYOUT ── */
+    #main {
+      display: flex; height: calc(100vh - 46px - 48px);
+      margin-top: 46px;
+    }
+
+    .panel-label {
+      font-size: 9px; font-weight: 500; letter-spacing: 0.14em;
+      color: var(--text3); text-transform: uppercase;
+    }
+
+    /* ── LEFT — BRAIN DUMP ── */
+    #braindump-panel {
+  flex: 2; flex-shrink: 0; display: flex; flex-direction: column;
+      border-right: 0.5px solid var(--border);
+    }
+
+    #braindump-header {
+      padding: 14px 16px 10px;
+      border-bottom: 0.5px solid var(--border); flex-shrink: 0;
+    }
+
+    #braindump-area {
+      flex: 1; font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; font-weight: 300; line-height: 1.9;
+      color: var(--text); background: transparent;
+      border: none; outline: none; resize: none;
+      padding: 14px 16px; -webkit-user-select: text; user-select: text;
+    }
+
+    #braindump-area::placeholder { color: var(--text3); font-style: italic; }
+
+    #braindump-footer {
+      padding: 8px 16px; border-top: 0.5px solid var(--border);
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+
+    #word-count { font-size: 10px; color: var(--text3); flex: 1; }
+
+    /* ── CENTER — TASKS + TIMELINE + LINKS ── */
+    #tasks-panel {
+  flex: 1; display: flex; flex-direction: column;
+  border-right: 0.5px solid var(--border); min-width: 0; overflow: hidden;
+    }
+
+    #tasks-header {
+      padding: 14px 14px 10px;
+      border-bottom: 0.5px solid var(--border); flex-shrink: 0;
+    }
+
+    #extracted-tasks {
+      flex: 1; overflow-y: auto; padding: 0 14px 8px; min-height: 0;
+    }
+
+    .ext-task-row {
+      display: flex; align-items: flex-start; gap: 6px;
+      padding: 6px 0; border-bottom: 0.5px solid var(--border);
+    }
+
+    .ext-task-row:last-child { border-bottom: none; }
+
+    .ext-task-check {
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 0.5px solid var(--text3); flex-shrink: 0; margin-top: 2px;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .ext-task-check.done { background: var(--success); border-color: var(--success); }
+    .ext-task-check.done::after {
+      content: ''; display: block; width: 4px; height: 3px;
+      border-left: 1.5px solid #1c1c1e; border-bottom: 1.5px solid #1c1c1e;
+      transform: rotate(-45deg) translateY(-1px);
+    }
+
+    .ext-task-body { flex: 1; min-width: 0; }
+
+    .ext-task-text {
+      font-size: 11px; color: var(--text); line-height: 1.5;
+      outline: none; -webkit-user-select: text; user-select: text;
+      font-family: 'JetBrains Mono', monospace; font-weight: 300;
+    }
+
+    .ext-task-text.done { text-decoration: line-through; color: var(--text3); }
+
+    .ext-task-actions {
+      display: flex; gap: 4px; margin-top: 3px; align-items: center; flex-wrap: wrap;
+    }
+
+    .ext-task-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 9px;
+      padding: 1px 5px; border-radius: 4px;
+      border: 0.5px solid var(--border); color: var(--text3);
+      background: transparent; cursor: pointer; outline: none;
+      transition: all 0.12s;
+    }
+
+    .ext-task-btn:hover { color: var(--text2); border-color: var(--border2); }
+    .ext-task-btn.send { color: var(--accent); border-color: var(--accent2); background: var(--accentbg); }
+    .ext-task-btn.send:hover { background: rgba(200,146,42,0.18); }
+    .ext-task-btn.reminder-set { color: var(--accent); border-color: var(--accent2); }
+    .ext-task-btn.del:hover { color: var(--danger); border-color: var(--danger); }
+
+    .ext-task-reminder-info {
+      font-size: 9px; color: var(--accent2); letter-spacing: 0.02em;
+    }
+
+    /* ── TIMELINE — STACKED ROWS ── */
+    #timeline-section {
+      border-top: 0.5px solid var(--border); flex-shrink: 0;
+      padding: 10px 14px 10px;
+    }
+
+    #timeline-section-label {
+      font-size: 9px; font-weight: 500; letter-spacing: 0.14em;
+      color: var(--text3); text-transform: uppercase; margin-bottom: 8px;
+    }
+
+    #timeline-rows { position: relative; }
+
+    .timeline-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 5px; height: 20px;
+    }
+
+    .timeline-row-label {
+      font-size: 9px; color: var(--text3); width: 70px;
+      flex-shrink: 0; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; text-align: right;
+    }
+
+    .timeline-row-track {
+      flex: 1; height: 14px; background: var(--bg2);
+      border-radius: 4px; position: relative; overflow: visible;
+    }
+
+    .timeline-row-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      border-radius: 4px; opacity: 0.75;
+    }
+
+    .timeline-row-today {
+      position: absolute; top: -3px; bottom: -3px; width: 1.5px;
+      background: var(--accent); opacity: 0.9; border-radius: 1px;
+    }
+
+    .timeline-row-remaining {
+      font-size: 9px; color: var(--text3); width: 40px;
+      flex-shrink: 0; text-align: left;
+    }
+
+    #timeline-empty {
+      font-size: 10px; color: var(--text3); font-style: italic;
+    }
+
+    /* ── LINKS ── */
+    #links-section {
+      border-top: 0.5px solid var(--border); flex-shrink: 0;
+    }
+
+    #links-section-header {
+      padding: 8px 14px 6px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    #links-list {
+      max-height: 80px; overflow-y: auto; padding: 0 14px 4px;
+    }
+
+    .link-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 0; border-bottom: 0.5px solid var(--border);
+    }
+
+    .link-row:last-child { border-bottom: none; }
+
+    .link-label {
+      flex: 1; font-size: 10px; color: var(--accent);
+      cursor: pointer; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; font-weight: 300;
+    }
+
+    .link-label:hover { text-decoration: underline; }
+
+    .link-del {
+      font-size: 11px; color: var(--text3); cursor: pointer;
+      padding: 0 3px; flex-shrink: 0; transition: color 0.12s;
+    }
+
+    .link-del:hover { color: var(--danger); }
+
+    #link-input-row {
+      display: flex; gap: 6px; padding: 5px 14px 8px;
+    }
+
+    #link-input {
+      flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      font-weight: 300; color: var(--text2); background: transparent;
+      border: none; border-bottom: 0.5px solid var(--border);
+      outline: none; padding-bottom: 3px;
+      -webkit-user-select: text; user-select: text;
+    }
+
+    #link-input::placeholder { color: var(--text3); }
+
+    /* ── RIGHT — PHASES ── */
+   #phases-panel {
+  flex: 1; flex-shrink: 0;
+      display: flex; flex-direction: column; overflow: hidden;
+      border-left: 0.5px solid var(--border);
+    }
+
+    #phases-header {
+      padding: 14px 14px 10px;
+      border-bottom: 0.5px solid var(--border); flex-shrink: 0;
+    }
+
+    #phases-list {
+      flex: 1; overflow-y: auto; padding: 8px 0;
+    }
+
+    .phase-block {
+      margin: 0 8px 8px; border-radius: 7px;
+      border: 0.5px solid var(--border2);
+      background: var(--bg2); overflow: hidden;
+      transition: border-color 0.15s;
+    }
+
+    .phase-block.selected { border-color: var(--accent2); }
+
+    .phase-color-bar {
+      height: 3px; width: 100%; flex-shrink: 0;
+    }
+
+    .phase-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; cursor: pointer;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    .phase-name {
+      flex: 1; font-size: 12px; font-weight: 500; color: var(--text);
+      outline: none; background: transparent; border: none;
+      -webkit-user-select: text; user-select: text;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .phase-name::placeholder { color: var(--text3); font-weight: 300; }
+
+    .phase-deadline {
+      font-size: 9px; color: var(--text3); cursor: pointer;
+      padding: 2px 6px; border-radius: 4px;
+      border: 0.5px solid var(--border); transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .phase-deadline:hover { color: var(--accent); border-color: var(--accent2); }
+    .phase-deadline.set { color: var(--accent); border-color: var(--accent2); }
+
+    .phase-controls { display: flex; gap: 3px; }
+
+    .phase-ctrl {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 1px 5px; border-radius: 3px;
+      border: 0.5px solid var(--border); color: var(--text3);
+      background: transparent; cursor: pointer; outline: none;
+      transition: all 0.12s;
+    }
+
+    .phase-ctrl:hover { color: var(--text2); border-color: var(--border2); }
+    .phase-ctrl.del:hover { color: var(--danger); border-color: var(--danger); }
+
+    .phase-tasks { padding: 6px 8px; }
+
+    .phase-task-row {
+      display: flex; align-items: flex-start; gap: 6px;
+      padding: 4px 0; border-bottom: 0.5px solid var(--border);
+    }
+
+    .phase-task-row:last-child { border-bottom: none; }
+
+    .phase-task-check {
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 0.5px solid var(--text3); flex-shrink: 0; margin-top: 2px;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .phase-task-check.done { background: var(--success); border-color: var(--success); }
+    .phase-task-check.done::after {
+      content: ''; display: block; width: 4px; height: 3px;
+      border-left: 1.5px solid #1c1c1e; border-bottom: 1.5px solid #1c1c1e;
+      transform: rotate(-45deg) translateY(-1px);
+    }
+
+    .phase-task-text {
+      flex: 1; font-size: 11px; color: var(--text2); line-height: 1.5;
+      outline: none; -webkit-user-select: text; user-select: text;
+      font-family: 'JetBrains Mono', monospace; font-weight: 300;
+    }
+
+    .phase-task-text.done { text-decoration: line-through; color: var(--text3); }
+
+    .phase-task-del {
+      font-size: 11px; color: var(--text3); cursor: pointer;
+      padding: 0 3px; flex-shrink: 0; line-height: 1.5;
+      transition: color 0.12s;
+    }
+
+    .phase-task-del:hover { color: var(--danger); }
+
+    .phase-task-add { display: flex; gap: 6px; margin-top: 6px; }
+
+    .phase-task-input {
+      flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      font-weight: 300; color: var(--text2); background: transparent;
+      border: none; border-bottom: 0.5px solid var(--border);
+      outline: none; padding-bottom: 3px;
+      -webkit-user-select: text; user-select: text;
+    }
+
+    .phase-task-input::placeholder { color: var(--text3); }
+
+    #add-phase-btn {
+      margin: 4px 8px 12px; padding: 8px;
+      border: 0.5px dashed var(--border2); border-radius: 7px;
+      color: var(--text3); font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; background: transparent; cursor: pointer;
+      text-align: center; transition: all 0.15s; outline: none; flex-shrink: 0;
+    }
+
+    #add-phase-btn:hover { color: var(--text2); border-color: var(--border2); }
+
+    /* ── PROJECT DOTS BAR ── */
+    #projects-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
+      background: var(--bg); border-top: 0.5px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 20px; gap: 12px; overflow-x: auto;
+      -webkit-app-region: no-drag; z-index: 100;
+    }
+
+    .project-dot-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 3px; cursor: pointer; flex-shrink: 0;
+    }
+
+    .project-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      transition: transform 0.15s, opacity 0.15s;
+      opacity: 0.5; border: 1.5px solid transparent;
+    }
+
+    .project-dot-wrap:hover .project-dot { opacity: 0.9; transform: scale(1.2); }
+    .project-dot-wrap.active .project-dot { opacity: 1; border-color: var(--text2); transform: scale(1.1); }
+
+    .project-dot-label {
+      font-size: 8px; color: var(--text3); letter-spacing: 0.04em;
+      max-width: 60px; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap; text-align: center;
+    }
+
+    .project-dot-wrap.active .project-dot-label { color: var(--accent); }
+
+    #add-project-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 16px;
+      color: var(--text3); background: transparent; border: none;
+      cursor: pointer; padding: 0 4px; outline: none; flex-shrink: 0;
+      transition: color 0.15s; line-height: 1;
+    }
+
+    #add-project-btn:hover { color: var(--accent); }
+
+    #new-project-input {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      background: var(--bg2); border: 0.5px solid var(--accent2);
+      border-radius: 5px; padding: 3px 8px; color: var(--text);
+      outline: none; width: 140px; display: none;
+      -webkit-user-select: text; user-select: text;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 4px 10px; border-radius: 5px;
+      border: 0.5px solid var(--border2); color: var(--text2);
+      background: transparent; cursor: pointer;
+      letter-spacing: 0.04em; transition: all 0.15s; outline: none;
+    }
+
+    .btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); background: var(--bg2); }
+    .btn.accent { border-color: var(--accent2); color: var(--accent); background: var(--accentbg); }
+    .btn.accent:hover { background: rgba(200,146,42,0.18); }
+
+    .empty-tasks {
+      font-size: 11px; color: var(--text3); font-style: italic;
+      padding: 10px 0; text-align: center;
+    }
+
+    /* ── DATE POPUP ── */
+    #date-popup {
+      display: none; position: fixed;
+      background: var(--bg3); border: 0.5px solid var(--border2);
+      border-radius: 8px; padding: 12px; z-index: 300;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    #date-popup.open { display: block; }
+    .date-popup-label { font-size: 10px; color: var(--text3); margin-bottom: 8px; }
+
+    .date-popup-input {
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      background: var(--bg2); border: 0.5px solid var(--border2);
+      border-radius: 5px; padding: 5px 9px; color: var(--text);
+      outline: none; width: 100%; margin-bottom: 8px;
+    }
+
+    .date-popup-footer { display: flex; gap: 6px; justify-content: flex-end; }
+
+    /* ── REMINDER POPUP ── */
+    #reminder-popup {
+      display: none; position: fixed;
+      background: var(--bg3); border: 0.5px solid var(--border2);
+      border-radius: 8px; padding: 12px; z-index: 300;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4); min-width: 240px;
+    }
+
+    #reminder-popup.open { display: block; }
+    .reminder-popup-label { font-size: 10px; color: var(--text2); margin-bottom: 8px; line-height: 1.4; }
+    .reminder-popup-label strong { color: var(--text); }
+    .reminder-popup-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
+    .reminder-popup-lbl { font-size: 10px; color: var(--text3); width: 30px; flex-shrink: 0; }
+
+    .reminder-popup-input {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      background: var(--bg2); border: 0.5px solid var(--border2);
+      border-radius: 5px; padding: 4px 8px; color: var(--text);
+      outline: none; flex: 1;
+    }
+
+    .reminder-popup-footer { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <div id="top-bar">
+    <span id="stave-mark">S†</span>
+    <input id="project-name-input" placeholder="project name..." spellcheck="false">
+    <button id="exit-btn" onclick="exitLockInPlan()">exit lock in</button>
+  </div>
+
+  <div id="main">
+
+    <!-- LEFT — BRAIN DUMP -->
+    <div id="braindump-panel">
+      <div id="braindump-header">
+        <div class="panel-label">brain dump</div>
+      </div>
+      <textarea id="braindump-area"
+        placeholder="dump everything here — ideas, questions, fragments, nothing is too small..."></textarea>
+      <div id="braindump-footer">
+        <span id="word-count">0 words</span>
+        <button class="btn accent" onclick="extractTasks()">extract tasks</button>
+      </div>
+    </div>
+
+    <!-- CENTER — TASKS + TIMELINE + LINKS -->
+    <div id="tasks-panel">
+      <div id="tasks-header">
+        <div class="panel-label">extracted tasks</div>
+      </div>
+      <div id="extracted-tasks">
+        <div class="empty-tasks">extract tasks from brain dump</div>
+      </div>
+
+      <div id="timeline-section">
+        <div id="timeline-section-label">timeline</div>
+        <div id="timeline-rows">
+          <div id="timeline-empty" class="empty-tasks">set phase deadlines to see timeline</div>
+        </div>
+      </div>
+
+      <div id="links-section">
+        <div id="links-section-header">
+          <span class="panel-label">links & refs</span>
+          <button class="btn" onclick="openProjectFolder()" style="font-size:9px;padding:2px 7px;">open folder</button>
+        </div>
+        <div id="links-list">
+          <div class="empty-tasks">paste urls and references</div>
+        </div>
+        <div id="link-input-row">
+          <input id="link-input" placeholder="paste url or note..." spellcheck="false">
+          <button class="btn accent" onclick="addLink()">add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — PHASES -->
+    <div id="phases-panel">
+      <div id="phases-header">
+        <div class="panel-label">phases</div>
+      </div>
+      <div id="phases-list"></div>
+      <button id="add-phase-btn" onclick="addPhase()">+ add phase</button>
+    </div>
+
+  </div>
+
+  <!-- PROJECT DOTS BAR -->
+  <div id="projects-bar">
+    <button id="add-project-btn" onclick="showNewProjectInput()" title="new project">+</button>
+    <input id="new-project-input" placeholder="project name..." spellcheck="false">
+  </div>
+
+  <!-- DATE POPUP -->
+  <div id="date-popup">
+    <div class="date-popup-label">phase deadline</div>
+    <input class="date-popup-input" type="date" id="deadline-input">
+    <div class="date-popup-footer">
+      <button class="btn" onclick="closeDatePopup()">cancel</button>
+      <button class="btn accent" onclick="confirmDeadline()">set</button>
+    </div>
+  </div>
+
+  <!-- REMINDER POPUP -->
+  <div id="reminder-popup">
+    <div class="reminder-popup-label">reminder: <strong id="reminder-task-label"></strong></div>
+    <div class="reminder-popup-row">
+      <span class="reminder-popup-lbl">date</span>
+      <input class="reminder-popup-input" type="date" id="reminder-date">
+    </div>
+    <div class="reminder-popup-row">
+      <span class="reminder-popup-lbl">time</span>
+      <input class="reminder-popup-input" type="time" id="reminder-time" step="1800">
+    </div>
+    <div class="reminder-popup-footer">
+      <button class="btn" onclick="closeReminderPopup()">cancel</button>
+      <button class="btn accent" onclick="confirmReminder()">set reminder</button>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron')
+    const fs = require('fs')
+    const path = require('path')
+    const os = require('os')
+
+    const PROJECTS_DIR = path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Stave', 'projects')
+    const PHASE_COLORS = ['#c8922a','#4caf7d','#7f77dd','#d85a30','#378add','#d4537e','#e8b84b','#5bb8d4']
+    const DOT_COLORS   = ['#c8922a','#4caf7d','#7f77dd','#d85a30','#378add','#d4537e','#e8b84b','#5bb8d4']
+
+    let projects = []
+    let currentProjectIndex = 0
+    let currentPhaseForDeadline = null
+    let currentReminderTaskIndex = null
+    let saveTimer = null
+
+    function emptyProject(name) {
+      return {
+        name: name || 'new project',
+        braindump: '',
+        phases: [],
+        tasks: [],
+        links: [],
+        created: new Date().toISOString()
+      }
+    }
+
+    ipcRenderer.on('init-lockin-plan', (event, { content, title }) => {
+      ensureProjectsDir()
+      loadAllProjects()
+      if (projects.length === 0) {
+        const p = emptyProject(title || 'new project')
+        p.braindump = content || ''
+        projects.push(p)
+        saveProject(0)
+      }
+      renderProjectDots()
+      loadProject(0)
+    })
+
+    function ensureProjectsDir() {
+      if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true })
+    }
+
+    function projectFilepath(index) {
+      const name = (projects[index]?.name || 'project').toLowerCase()
+        .replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')
+      return path.join(PROJECTS_DIR, `proj-${index}-${name}.md`)
+    }
+
+    function saveProject(index) {
+      if (index === undefined) index = currentProjectIndex
+      const p = projects[index]
+      if (!p) return
+      try { fs.writeFileSync(projectFilepath(index), serializeProject(p), 'utf8') } catch(e) {}
+    }
+
+    function serializeProject(p) {
+      let md = `# ${p.name}\ntype: project\ncreated: ${p.created}\n\n`
+      md += `## braindump\n${p.braindump}\n\n`
+      md += `## phases\n`
+      p.phases.forEach(phase => {
+        md += `### ${phase.name}\n`
+        if (phase.deadline) md += `deadline: ${phase.deadline}\n`
+        phase.tasks.forEach(t => {
+          md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+        })
+      })
+      md += `\n## tasks\n`
+      p.tasks.forEach(t => {
+        md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+        if (t.reminder) md += `  reminder: ${t.reminder}\n`
+      })
+      md += `\n## links\n`
+      p.links.forEach(l => { md += `- ${l}\n` })
+      return md
+    }
+
+    function loadAllProjects() {
+      projects = []
+      try {
+        const files = fs.readdirSync(PROJECTS_DIR)
+          .filter(f => f.endsWith('.md') && f.startsWith('proj-'))
+          .sort()
+        files.forEach(f => {
+          const raw = fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8')
+          projects.push(parseProject(raw))
+        })
+      } catch(e) {}
+    }
+
+    function parseProject(raw) {
+      const lines = raw.split('\n')
+      const p = emptyProject()
+      let section = '', currentPhase = null
+
+      lines.forEach(line => {
+        if (line.startsWith('# '))        { p.name = line.slice(2).trim(); return }
+        if (line.startsWith('created: ')) { p.created = line.slice(9).trim(); return }
+        if (line === '## braindump')      { section = 'braindump'; return }
+        if (line === '## phases')         { section = 'phases'; return }
+        if (line === '## tasks')          { section = 'tasks'; return }
+        if (line === '## links')          { section = 'links'; return }
+
+        if (section === 'braindump') { p.braindump += (p.braindump ? '\n' : '') + line; return }
+
+        if (section === 'phases') {
+          if (line.startsWith('### ')) {
+            currentPhase = { name: line.slice(4).trim(), deadline: null, tasks: [] }
+            p.phases.push(currentPhase)
+          } else if (line.startsWith('deadline: ') && currentPhase) {
+            currentPhase.deadline = line.slice(10).trim()
+          } else if ((line.startsWith('- [ ] ') || line.startsWith('- [x] ')) && currentPhase) {
+            currentPhase.tasks.push({
+              text: line.slice(6).trim(),
+              done: line.startsWith('- [x]')
+            })
+          }
+          return
+        }
+
+        if (section === 'tasks') {
+          if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
+            p.tasks.push({ text: line.slice(6).trim(), done: line.startsWith('- [x]'), reminder: null })
+          } else if (line.startsWith('  reminder: ') && p.tasks.length > 0) {
+            p.tasks[p.tasks.length-1].reminder = line.slice(12).trim()
+          }
+          return
+        }
+
+        if (section === 'links') {
+          if (line.startsWith('- ')) p.links.push(line.slice(2).trim())
+          return
+        }
+      })
+
+      p.braindump = p.braindump.trim()
+      return p
+    }
+
+    function autoSave() {
+      clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => saveProject(currentProjectIndex), 800)
+    }
+
+    function loadProject(index) {
+      currentProjectIndex = index
+      const p = projects[index]
+      if (!p) return
+      document.getElementById('project-name-input').value = p.name || ''
+      document.getElementById('braindump-area').value = p.braindump || ''
+      updateWordCount()
+      renderPhases()
+      renderExtractedTasks()
+      renderLinks()
+      renderTimeline()
+      renderProjectDots()
+    }
+
+    // ── PROJECT DOTS ──
+    function renderProjectDots() {
+      const bar = document.getElementById('projects-bar')
+      bar.querySelectorAll('.project-dot-wrap').forEach(d => d.remove())
+      const addBtn = document.getElementById('add-project-btn')
+
+      projects.forEach((p, i) => {
+        const wrap = document.createElement('div')
+        wrap.className = 'project-dot-wrap' + (i === currentProjectIndex ? ' active' : '')
+        wrap.onclick = () => { saveProject(currentProjectIndex); loadProject(i) }
+
+        const dot = document.createElement('div')
+        dot.className = 'project-dot'
+        dot.style.background = DOT_COLORS[i % DOT_COLORS.length]
+
+        const label = document.createElement('div')
+        label.className = 'project-dot-label'
+        label.textContent = p.name || 'project'
+
+        wrap.appendChild(dot)
+        wrap.appendChild(label)
+        bar.insertBefore(wrap, addBtn)
+      })
+    }
+
+    function showNewProjectInput() {
+      const input = document.getElementById('new-project-input')
+      input.style.display = 'block'
+      input.value = ''
+      input.focus()
+    }
+
+    document.getElementById('new-project-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const name = e.target.value.trim() || 'new project'
+        e.target.style.display = 'none'
+        const p = emptyProject(name)
+        projects.push(p)
+        saveProject(projects.length - 1)
+        renderProjectDots()
+        loadProject(projects.length - 1)
+      }
+      if (e.key === 'Escape') {
+        e.target.style.display = 'none'
+      }
+    })
+
+    // ── PHASES ──
+    function renderPhases() {
+      const list = document.getElementById('phases-list')
+      list.innerHTML = ''
+      const p = projects[currentProjectIndex]
+      if (!p) return
+
+      p.phases.forEach((phase, pi) => {
+        const color = PHASE_COLORS[pi % PHASE_COLORS.length]
+
+        const block = document.createElement('div')
+        block.className = 'phase-block'
+        block.dataset.index = pi
+
+        // color bar at top
+        const colorBar = document.createElement('div')
+        colorBar.className = 'phase-color-bar'
+        colorBar.style.background = color
+
+        const header = document.createElement('div')
+        header.className = 'phase-header'
+        header.onclick = (e) => {
+          if (e.target.closest('.phase-ctrl') ||
+              e.target.closest('.phase-deadline') ||
+              e.target.closest('.phase-name')) return
+          document.querySelectorAll('.phase-block').forEach(b => b.classList.remove('selected'))
+          block.classList.toggle('selected')
+        }
+
+        const nameInput = document.createElement('input')
+        nameInput.className = 'phase-name'
+        nameInput.value = phase.name
+        nameInput.placeholder = 'phase name...'
+        nameInput.onchange = () => {
+          p.phases[pi].name = nameInput.value
+          autoSave(); renderTimeline(); renderProjectDots()
+        }
+
+        const deadlineBtn = document.createElement('button')
+        deadlineBtn.className = 'phase-deadline' + (phase.deadline ? ' set' : '')
+        deadlineBtn.textContent = phase.deadline ? formatDeadline(phase.deadline) : 'deadline'
+        deadlineBtn.onclick = () => openDatePopup(pi, deadlineBtn)
+
+        const controls = document.createElement('div')
+        controls.className = 'phase-controls'
+
+        const upBtn = document.createElement('button')
+        upBtn.className = 'phase-ctrl'; upBtn.textContent = '↑'
+        upBtn.onclick = () => { if (pi > 0) { swapPhases(pi, pi-1); renderPhases(); renderTimeline() } }
+
+        const downBtn = document.createElement('button')
+        downBtn.className = 'phase-ctrl'; downBtn.textContent = '↓'
+        downBtn.onclick = () => { if (pi < p.phases.length-1) { swapPhases(pi, pi+1); renderPhases(); renderTimeline() } }
+
+        const delBtn = document.createElement('button')
+        delBtn.className = 'phase-ctrl del'; delBtn.textContent = '×'
+        delBtn.onclick = () => {
+          if (confirm(`Delete phase "${phase.name}"?`)) {
+            p.phases.splice(pi, 1); autoSave(); renderPhases(); renderTimeline()
+          }
+        }
+
+        controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(delBtn)
+        header.appendChild(nameInput); header.appendChild(deadlineBtn); header.appendChild(controls)
+
+        const tasksDiv = document.createElement('div')
+        tasksDiv.className = 'phase-tasks'
+
+        phase.tasks.forEach((task, ti) => {
+          const row = document.createElement('div')
+          row.className = 'phase-task-row'
+
+          const check = document.createElement('div')
+          check.className = 'phase-task-check' + (task.done ? ' done' : '')
+          check.onclick = () => {
+            p.phases[pi].tasks[ti].done = !p.phases[pi].tasks[ti].done
+            check.classList.toggle('done'); textEl.classList.toggle('done'); autoSave()
+          }
+
+          const textEl = document.createElement('div')
+          textEl.className = 'phase-task-text' + (task.done ? ' done' : '')
+          textEl.contentEditable = true
+          textEl.textContent = task.text
+          textEl.onblur = () => { p.phases[pi].tasks[ti].text = textEl.textContent.trim(); autoSave() }
+
+          const delTask = document.createElement('span')
+          delTask.className = 'phase-task-del'; delTask.textContent = '×'
+          delTask.onclick = () => { p.phases[pi].tasks.splice(ti, 1); autoSave(); renderPhases() }
+
+          row.appendChild(check); row.appendChild(textEl); row.appendChild(delTask)
+          tasksDiv.appendChild(row)
+        })
+
+        const addRow = document.createElement('div')
+        addRow.className = 'phase-task-add'
+        const taskInput = document.createElement('input')
+        taskInput.className = 'phase-task-input'
+        taskInput.placeholder = '+ add task...'
+        taskInput.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            const text = taskInput.value.trim()
+            if (text) { p.phases[pi].tasks.push({ text, done: false }); autoSave(); renderPhases() }
+          }
+        }
+        addRow.appendChild(taskInput)
+        tasksDiv.appendChild(addRow)
+
+        block.appendChild(colorBar)
+        block.appendChild(header)
+        block.appendChild(tasksDiv)
+        list.appendChild(block)
+      })
+    }
+
+    function swapPhases(a, b) {
+      const p = projects[currentProjectIndex]
+      ;[p.phases[a], p.phases[b]] = [p.phases[b], p.phases[a]]
+      autoSave()
+    }
+
+    function addPhase() {
+      const p = projects[currentProjectIndex]
+      if (!p) return
+      p.phases.push({ name: 'new phase', deadline: null, tasks: [] })
+      autoSave(); renderPhases(); renderTimeline()
+      setTimeout(() => {
+        const blocks = document.querySelectorAll('.phase-block')
+        const last = blocks[blocks.length - 1]
+        if (last) last.querySelector('.phase-name').focus()
+      }, 50)
+    }
+
+    // ── DEADLINE POPUP ──
+    function openDatePopup(phaseIndex, btn) {
+      currentPhaseForDeadline = phaseIndex
+      const p = projects[currentProjectIndex]
+      document.getElementById('deadline-input').value =
+        p.phases[phaseIndex].deadline || new Date().toISOString().slice(0,10)
+      const rect = btn.getBoundingClientRect()
+      const popup = document.getElementById('date-popup')
+      popup.style.top = (rect.bottom + 6) + 'px'
+      popup.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px'
+      popup.classList.add('open')
+    }
+
+    function closeDatePopup() {
+      document.getElementById('date-popup').classList.remove('open')
+      currentPhaseForDeadline = null
+    }
+
+    function confirmDeadline() {
+      const date = document.getElementById('deadline-input').value
+      if (!date || currentPhaseForDeadline === null) { closeDatePopup(); return }
+      const p = projects[currentProjectIndex]
+      p.phases[currentPhaseForDeadline].deadline = date
+      autoSave(); renderPhases(); renderTimeline()
+      closeDatePopup()
+    }
+
+    function formatDeadline(dateStr) {
+      const d = new Date(dateStr + 'T12:00:00')
+      const now = new Date()
+      const diff = Math.ceil((d - now) / (1000 * 60 * 60 * 24))
+      if (diff < 0) return `${Math.abs(diff)}d ago`
+      if (diff === 0) return 'today'
+      if (diff <= 30) return `${diff}d`
+      if (diff <= 90) return `${Math.ceil(diff/7)}w`
+      return `${Math.ceil(diff/30)}mo`
+    }
+
+    // ── TIMELINE — STACKED ROWS ──
+    function renderTimeline() {
+      const p = projects[currentProjectIndex]
+      const container = document.getElementById('timeline-rows')
+      const empty = document.getElementById('timeline-empty')
+      container.innerHTML = ''
+
+      const phasesWithDeadlines = p ? p.phases.filter(ph => ph.deadline) : []
+
+      if (!phasesWithDeadlines.length) {
+        const emptyEl = document.createElement('div')
+        emptyEl.className = 'empty-tasks'
+        emptyEl.textContent = 'set phase deadlines to see timeline'
+        container.appendChild(emptyEl)
+        return
+      }
+
+      const now = new Date()
+      const allDates = phasesWithDeadlines.map(ph => new Date(ph.deadline + 'T12:00:00'))
+      const projectStart = new Date(p.created)
+      const minDate = new Date(Math.min(projectStart, now, ...allDates))
+      const maxDate = new Date(Math.max(...allDates))
+      maxDate.setDate(maxDate.getDate() + 2)
+      const totalMs = maxDate - minDate
+
+      phasesWithDeadlines.forEach((phase, i) => {
+        const phaseIndex = p.phases.indexOf(phase)
+        const color = PHASE_COLORS[phaseIndex % PHASE_COLORS.length]
+        const deadline = new Date(phase.deadline + 'T12:00:00')
+        const isPast = deadline < now
+        const diff = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24))
+
+        const row = document.createElement('div')
+        row.className = 'timeline-row'
+
+        const label = document.createElement('div')
+        label.className = 'timeline-row-label'
+        label.textContent = phase.name
+        label.title = phase.name
+
+        const track = document.createElement('div')
+        track.className = 'timeline-row-track'
+
+        // fill bar — from start to deadline
+        const fillPct = Math.min(100, ((deadline - minDate) / totalMs) * 100)
+        const fill = document.createElement('div')
+        fill.className = 'timeline-row-fill'
+        fill.style.width = fillPct + '%'
+        fill.style.background = color
+        fill.style.opacity = isPast ? '0.3' : '0.75'
+
+        // today line
+        const todayPct = Math.max(0, Math.min(100, ((now - minDate) / totalMs) * 100))
+        const todayLine = document.createElement('div')
+        todayLine.className = 'timeline-row-today'
+        todayLine.style.left = todayPct + '%'
+
+        track.appendChild(fill)
+        track.appendChild(todayLine)
+
+        const remaining = document.createElement('div')
+        remaining.className = 'timeline-row-remaining'
+        if (isPast) remaining.textContent = `${Math.abs(diff)}d ago`
+        else if (diff === 0) remaining.textContent = 'today'
+        else if (diff <= 30) remaining.textContent = `${diff}d`
+        else if (diff <= 90) remaining.textContent = `${Math.ceil(diff/7)}w`
+        else remaining.textContent = `${Math.ceil(diff/30)}mo`
+        remaining.style.color = isPast ? 'var(--danger)' : diff <= 7 ? 'var(--accent)' : 'var(--text3)'
+
+        row.appendChild(label)
+        row.appendChild(track)
+        row.appendChild(remaining)
+        container.appendChild(row)
+      })
+    }
+
+    // ── EXTRACT TASKS ──
+    const ACTION_WORDS = [
+      'need to','needs to','have to','has to','must','should',
+      'call','text','email','send','write','finish','complete',
+      'schedule','book','order','buy','get','pick up','drop off',
+      'follow up','follow-up','reach out','contact','remind',
+      'submit','review','edit','update','fix','check','confirm',
+      'prepare','plan','arrange','organize','set up','demo',
+      'record','print','deliver','return','pay','invoice',
+      'add','promote','announce','post','share','upload','download',
+      'research','draft','pitch','present','assign','delegate',
+      'approve','request','respond','reply','forward','create',
+      'build','design','launch','test','finalize','publish',
+      'message','meet','film','caption','graphic','artwork','budget'
+    ]
+
+    function scoreSentence(s) {
+      const lower = s.toLowerCase()
+      if (s.trim().startsWith('>>')) return 10
+      let score = 0
+      ACTION_WORDS.forEach(w => { if (lower.includes(w)) score += 2 })
+      const first = s.trim().split(' ')[0].toLowerCase()
+      const imperatives = ['call','send','write','email','get','buy','fix','check',
+        'review','schedule','book','contact','finish','complete','submit','update',
+        'order','record','print','demo','prepare','add','promote','post','share',
+        'create','build','design','launch','film','message','meet','finalize']
+      if (imperatives.includes(first)) score += 2
+      return score
+    }
+
+    function extractTasks() {
+      const text = document.getElementById('braindump-area').value
+      if (!text.trim()) return
+      const p = projects[currentProjectIndex]
+     const existing = [
+  ...p.tasks.map(t => t.text.trim().toLowerCase()),
+  ...p.phases.flatMap(ph => ph.tasks.map(t => t.text.trim().toLowerCase()))
+]
+      let added = 0
+
+      text.split(/(?<=[.!?\n])/).map(s => s.trim()).filter(s => s.length > 4)
+        .map(s => ({ text: s.replace(/^>>\s*/,'').trim(), score: scoreSentence(s) }))
+        .filter(s => s.score >= 2 && s.text.length > 0 &&
+          !existing.includes(s.text.trim().toLowerCase()))
+        .forEach(c => { p.tasks.push({ text: c.text, done: false, reminder: null }); added++ })
+
+      if (added > 0) { autoSave(); renderExtractedTasks() }
+    }
+
+    // ── EXTRACTED TASKS ──
+    function renderExtractedTasks() {
+      const container = document.getElementById('extracted-tasks')
+      const p = projects[currentProjectIndex]
+      container.innerHTML = ''
+
+      if (!p || !p.tasks.length) {
+        container.innerHTML = '<div class="empty-tasks">extract tasks from brain dump</div>'
+        return
+      }
+
+      p.tasks.forEach((task, i) => {
+        const row = document.createElement('div')
+        row.className = 'ext-task-row'
+
+        const check = document.createElement('div')
+        check.className = 'ext-task-check' + (task.done ? ' done' : '')
+        check.onclick = () => {
+          p.tasks[i].done = !p.tasks[i].done
+          check.classList.toggle('done'); textEl.classList.toggle('done'); autoSave()
+        }
+
+        const body = document.createElement('div')
+        body.className = 'ext-task-body'
+
+        const textEl = document.createElement('div')
+        textEl.className = 'ext-task-text' + (task.done ? ' done' : '')
+        textEl.contentEditable = true
+        textEl.textContent = task.text
+        textEl.onblur = () => { p.tasks[i].text = textEl.textContent.trim(); autoSave() }
+
+        const actions = document.createElement('div')
+        actions.className = 'ext-task-actions'
+
+       const sendBtn = document.createElement('button')
+sendBtn.className = 'ext-task-btn send'
+sendBtn.textContent = '→ phase'
+sendBtn.onclick = (e) => showPhasePicker(e, i)
+
+        const reminderBtn = document.createElement('button')
+        reminderBtn.className = 'ext-task-btn' + (task.reminder ? ' reminder-set' : '')
+        reminderBtn.textContent = task.reminder ? 'edit reminder' : '+ reminder'
+        reminderBtn.onclick = () => openReminderPopup(i, reminderBtn)
+
+        const reminderInfo = document.createElement('span')
+        reminderInfo.className = 'ext-task-reminder-info'
+        if (task.reminder) {
+          try {
+            const d = new Date(task.reminder)
+            if (!isNaN(d)) {
+              reminderInfo.textContent = `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${d.getFullYear().toString().slice(2)} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`
+            }
+          } catch(e) {}
+        }
+
+        const delBtn = document.createElement('button')
+        delBtn.className = 'ext-task-btn del'
+        delBtn.textContent = '×'
+        delBtn.onclick = () => { p.tasks.splice(i, 1); autoSave(); renderExtractedTasks() }
+
+        actions.appendChild(sendBtn)
+        actions.appendChild(reminderBtn)
+        actions.appendChild(reminderInfo)
+        actions.appendChild(delBtn)
+        body.appendChild(textEl)
+        body.appendChild(actions)
+        row.appendChild(check)
+        row.appendChild(body)
+        container.appendChild(row)
+      })
+    }
+function showPhasePicker(e, taskIndex) {
+  const p = projects[currentProjectIndex]
+  if (!p) return
+
+  // remove any existing picker
+  document.querySelectorAll('.phase-picker').forEach(el => el.remove())
+
+  if (!p.phases.length) {
+    p.phases.push({ name: 'inbox', deadline: null, tasks: [] })
+    autoSave(); renderPhases()
+  }
+
+  const picker = document.createElement('div')
+  picker.className = 'phase-picker'
+  picker.style.cssText = `
+    position: fixed;
+    background: var(--bg3);
+    border: 0.5px solid var(--border2);
+    border-radius: 6px;
+    padding: 4px 0;
+    z-index: 400;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    min-width: 140px;
+  `
+
+  const rect = e.target.getBoundingClientRect()
+  picker.style.top = (rect.bottom + 4) + 'px'
+  picker.style.left = rect.left + 'px'
+
+  p.phases.forEach((phase, pi) => {
+    const color = PHASE_COLORS[pi % PHASE_COLORS.length]
+    const item = document.createElement('div')
+    item.style.cssText = `
+      padding: 6px 12px;
+      font-size: 11px;
+      color: var(--text2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: JetBrains Mono, monospace;
+      transition: background 0.1s;
+    `
+    item.onmouseenter = () => item.style.background = 'var(--bg2)'
+    item.onmouseleave = () => item.style.background = 'transparent'
+
+    const dot = document.createElement('span')
+    dot.style.cssText = `
+      width: 8px; height: 8px; border-radius: 50%;
+      background: ${color}; flex-shrink: 0; display: inline-block;
+    `
+
+    item.appendChild(dot)
+    item.appendChild(document.createTextNode(phase.name))
+    item.onclick = () => {
+      sendTaskToPhase(taskIndex, pi)
+      picker.remove()
+    }
+    picker.appendChild(item)
+  })
+
+  document.body.appendChild(picker)
+
+  // close on outside click
+  setTimeout(() => {
+    document.addEventListener('click', function closePicker(ev) {
+      if (!picker.contains(ev.target)) {
+        picker.remove()
+        document.removeEventListener('click', closePicker)
+      }
+    })
+  }, 0)
+}
+  function sendTaskToPhase(taskIndex, phaseIndex) {
+  const p = projects[currentProjectIndex]
+  const task = p.tasks[taskIndex]
+  if (!task) return
+
+  p.phases[phaseIndex].tasks.push({ text: task.text, done: false })
+  p.tasks.splice(taskIndex, 1)
+  autoSave(); renderPhases(); renderExtractedTasks()
+
+  // flash the target phase
+  const blocks = document.querySelectorAll('.phase-block')
+  const targetBlock = blocks[phaseIndex]
+  if (targetBlock) {
+    targetBlock.style.borderColor = 'var(--accent)'
+    setTimeout(() => { targetBlock.style.borderColor = '' }, 600)
+  }
+}
+
+    // ── REMINDER POPUP ──
+    function getNearest30() {
+      const now = new Date()
+      const d = new Date(now)
+      d.setMinutes(now.getMinutes() < 30 ? 30 : 0, 0, 0)
+      if (now.getMinutes() >= 30) d.setHours(d.getHours() + 1)
+      return d.toTimeString().slice(0,5)
+    }
+
+    function openReminderPopup(taskIndex, btn) {
+      currentReminderTaskIndex = taskIndex
+      const p = projects[currentProjectIndex]
+      const task = p.tasks[taskIndex]
+
+      document.getElementById('reminder-task-label').textContent =
+        task.text.length > 30 ? task.text.slice(0,30) + '…' : task.text
+
+      const now = new Date()
+      document.getElementById('reminder-date').value = now.toISOString().slice(0,10)
+
+      if (task.reminder) {
+        try {
+          const d = new Date(task.reminder)
+          if (!isNaN(d)) {
+            document.getElementById('reminder-date').value = d.toISOString().slice(0,10)
+            document.getElementById('reminder-time').value = d.toTimeString().slice(0,5)
+          } else {
+            document.getElementById('reminder-time').value = getNearest30()
+          }
+        } catch(e) { document.getElementById('reminder-time').value = getNearest30() }
+      } else {
+        document.getElementById('reminder-time').value = getNearest30()
+      }
+
+      const rect = btn.getBoundingClientRect()
+      const popup = document.getElementById('reminder-popup')
+      popup.style.top = (rect.bottom + 6) + 'px'
+      popup.style.left = Math.min(rect.left, window.innerWidth - 260) + 'px'
+      popup.classList.add('open')
+    }
+
+    function closeReminderPopup() {
+      document.getElementById('reminder-popup').classList.remove('open')
+      currentReminderTaskIndex = null
+    }
+
+    function confirmReminder() {
+      const date = document.getElementById('reminder-date').value
+      const time = document.getElementById('reminder-time').value
+      if (!date || !time || currentReminderTaskIndex === null) { closeReminderPopup(); return }
+
+      const isoString = `${date}T${time}`
+      const p = projects[currentProjectIndex]
+      p.tasks[currentReminderTaskIndex].reminder = isoString
+      autoSave()
+
+      // schedule the notification
+      ipcRenderer.send('schedule-reminder', {
+        title: p.tasks[currentReminderTaskIndex].text,
+        date, time
+      })
+
+      closeReminderPopup()
+      renderExtractedTasks()
+    }
+
+    // ── LINKS ──
+    function addLink() {
+      const input = document.getElementById('link-input')
+      const val = input.value.trim()
+      if (!val) return
+      const p = projects[currentProjectIndex]
+      p.links.push(val)
+      input.value = ''
+      autoSave(); renderLinks()
+    }
+
+    function renderLinks() {
+      const container = document.getElementById('links-list')
+      const p = projects[currentProjectIndex]
+      container.innerHTML = ''
+
+      if (!p || !p.links.length) {
+        container.innerHTML = '<div class="empty-tasks">paste urls and references</div>'
+        return
+      }
+
+      p.links.forEach((link, i) => {
+        const row = document.createElement('div')
+        row.className = 'link-row'
+
+        const label = document.createElement('div')
+        label.className = 'link-label'
+        try {
+          const url = new URL(link)
+          label.textContent = url.hostname; label.title = link
+        } catch(e) {
+          label.textContent = link.slice(0,40); label.style.color = 'var(--text2)'
+        }
+        label.onclick = () => {
+          if (link.startsWith('http')) require('electron').shell.openExternal(link)
+        }
+
+        const del = document.createElement('span')
+        del.className = 'link-del'; del.textContent = '×'
+        del.onclick = () => { p.links.splice(i, 1); autoSave(); renderLinks() }
+
+        row.appendChild(label); row.appendChild(del)
+        container.appendChild(row)
+      })
+    }
+
+    function openProjectFolder() {
+      if (!fs.existsSync(PROJECTS_DIR)) fs.mkdirSync(PROJECTS_DIR, { recursive: true })
+      require('electron').shell.openPath(PROJECTS_DIR)
+    }
+
+    function updateWordCount() {
+      const text = document.getElementById('braindump-area').value
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0
+      document.getElementById('word-count').textContent = `${words} words`
+    }
+
+    function exitLockInPlan() {
+      saveProject(currentProjectIndex)
+      ipcRenderer.send('close-lockin-plan', {
+        braindump: document.getElementById('braindump-area').value
+      })
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        if (document.getElementById('date-popup').classList.contains('open')) { closeDatePopup(); return }
+        if (document.getElementById('reminder-popup').classList.contains('open')) { closeReminderPopup(); return }
+        exitLockInPlan()
+      }
+      if (e.key === 's' && e.metaKey) { e.preventDefault(); saveProject(currentProjectIndex) }
+    })
+
+    document.getElementById('braindump-area').addEventListener('input', () => {
+      updateWordCount(); autoSave()
+    })
+
+    document.getElementById('project-name-input').addEventListener('input', () => {
+      const p = projects[currentProjectIndex]
+      if (p) { p.name = document.getElementById('project-name-input').value; autoSave(); renderProjectDots() }
+    })
+
+    document.getElementById('link-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addLink()
+    })
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#date-popup') && !e.target.closest('.phase-deadline')) closeDatePopup()
+      if (!e.target.closest('#reminder-popup') && !e.target.closest('.ext-task-btn')) closeReminderPopup()
+    })
+  </script>
+</body>
+</html>

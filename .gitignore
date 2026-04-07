@@ -1,0 +1,7 @@
+node_modules/
+dist/
+web-raw.txt
+web-raw.json
+lots_of_words.rtf
+*.log
+.DS_Store

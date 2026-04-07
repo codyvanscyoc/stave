@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>S†AVE — Reminders</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #1c1c1e;
+      --bg2:      #252528;
+      --bg3:      #2e2e32;
+      --border:   rgba(255,255,255,0.07);
+      --border2:  rgba(255,255,255,0.13);
+      --text:     #f0e8d8;
+      --text2:    #9a9080;
+      --text3:    #4e4a44;
+      --accent:   #c8922a;
+      --accent2:  #a07420;
+      --accentbg: rgba(200,146,42,0.10);
+      --success:  #4caf7d;
+      --danger:   #c0392b;
+    }
+
+    html, body {
+      width: 100%; height: 100vh;
+      background: var(--bg); color: var(--text);
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: 13px; -webkit-font-smoothing: antialiased;
+      display: flex; flex-direction: column; overflow: hidden;
+      user-select: none;
+    }
+
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    #titlebar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; border-bottom: 0.5px solid var(--border);
+      -webkit-app-region: drag; flex-shrink: 0;
+    }
+
+    #titlebar-name { font-size: 11px; font-weight: 500; letter-spacing: 0.12em; color: var(--accent); }
+
+    #close-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 3px 8px; border-radius: 5px;
+      border: 0.5px solid var(--border2); color: var(--text3);
+      background: transparent; cursor: pointer;
+      -webkit-app-region: no-drag; transition: all 0.15s;
+    }
+
+    #close-btn:hover { color: var(--text2); }
+
+    #filter-bar {
+      display: flex; gap: 0;
+      border-bottom: 0.5px solid var(--border); flex-shrink: 0;
+    }
+
+    .filter-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 7px 16px; background: transparent; color: var(--text3);
+      border: none; cursor: pointer; transition: all 0.15s; flex: 1; text-align: center;
+      letter-spacing: 0.05em;
+    }
+
+    .filter-btn.active { color: var(--accent); border-bottom: 1.5px solid var(--accent); }
+    .filter-btn:hover:not(.active) { color: var(--text2); }
+
+    #results-meta {
+      font-size: 10px; color: var(--text3);
+      padding: 6px 14px 4px; flex-shrink: 0;
+    }
+
+    #reminders-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+    .reminder-row {
+      padding: 10px 14px; border-bottom: 0.5px solid var(--border);
+      transition: background 0.12s;
+    }
+
+    .reminder-row:hover { background: var(--bg2); }
+    .reminder-row:last-child { border-bottom: none; }
+
+    .reminder-row.past { opacity: 0.5; }
+
+    .reminder-task {
+      font-size: 13px; color: var(--text); line-height: 1.4;
+      margin-bottom: 4px; font-weight: 400;
+    }
+
+    .reminder-task.done { text-decoration: line-through; color: var(--text3); }
+
+    .reminder-meta {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+
+    .reminder-time {
+      font-size: 10px; font-weight: 500; color: var(--accent);
+      padding: 2px 7px; border-radius: 8px;
+      background: var(--accentbg); border: 0.5px solid var(--accent2);
+    }
+
+    .reminder-time.past { color: var(--danger); background: rgba(192,57,43,0.1); border-color: var(--danger); }
+
+    .reminder-note {
+      font-size: 10px; color: var(--text3); cursor: pointer;
+    }
+
+    .reminder-note:hover { color: var(--accent); }
+
+    .empty-state {
+      display: flex; align-items: center; justify-content: center;
+      flex: 1; font-size: 12px; color: var(--text3); font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="titlebar">
+    <span id="titlebar-name">S†AVE — reminders</span>
+    <button id="close-btn" onclick="closeReminders()">close</button>
+  </div>
+
+  <div id="filter-bar">
+    <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">all</button>
+    <button class="filter-btn" id="filter-upcoming" onclick="setFilter('upcoming')">upcoming</button>
+    <button class="filter-btn" id="filter-past" onclick="setFilter('past')">past</button>
+  </div>
+
+  <div id="results-meta"></div>
+
+  <div id="reminders-list">
+    <div class="empty-state">loading reminders...</div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron')
+
+    let allReminders = []
+    let currentFilter = 'all'
+
+    function closeReminders() { ipcRenderer.send('close-reminders') }
+
+    function setFilter(f) {
+      currentFilter = f
+      ;['all','upcoming','past'].forEach(id => {
+        document.getElementById('filter-' + id).classList.toggle('active', id === f)
+      })
+      renderReminders()
+    }
+
+    function formatDateTime(isoString) {
+      const d = new Date(isoString)
+      return `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${d.getFullYear().toString().slice(2)} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`
+    }
+
+    function renderReminders() {
+      const list = document.getElementById('reminders-list')
+      const meta = document.getElementById('results-meta')
+      const now = new Date()
+
+      let filtered = allReminders
+      if (currentFilter === 'upcoming') filtered = allReminders.filter(r => !r.isPast)
+      if (currentFilter === 'past') filtered = allReminders.filter(r => r.isPast)
+
+      list.innerHTML = ''
+
+      if (!filtered.length) {
+        const empty = document.createElement('div')
+        empty.className = 'empty-state'
+        empty.textContent = currentFilter === 'upcoming' ? 'no upcoming reminders' :
+                            currentFilter === 'past' ? 'no past reminders' : 'no reminders set'
+        list.appendChild(empty)
+        meta.textContent = ''
+        return
+      }
+
+      meta.textContent = `${filtered.length} reminder${filtered.length !== 1 ? 's' : ''}`
+
+      filtered.forEach(r => {
+        const row = document.createElement('div')
+        row.className = 'reminder-row' + (r.isPast ? ' past' : '')
+
+        const task = document.createElement('div')
+        task.className = 'reminder-task' + (r.done ? ' done' : '')
+        task.textContent = r.taskText
+
+        const metaEl = document.createElement('div')
+        metaEl.className = 'reminder-meta'
+
+        const time = document.createElement('span')
+        time.className = 'reminder-time' + (r.isPast ? ' past' : '')
+        time.textContent = formatDateTime(r.isoString)
+
+        const note = document.createElement('span')
+        note.className = 'reminder-note'
+        note.textContent = `from: ${r.noteTitle}`
+        note.onclick = () => {
+          ipcRenderer.send('search-open-note', { filename: r.filename, mode: r.mode })
+        }
+
+        metaEl.appendChild(time)
+        metaEl.appendChild(note)
+        row.appendChild(task)
+        row.appendChild(metaEl)
+        list.appendChild(row)
+      })
+    }
+
+    ipcRenderer.send('get-all-reminders')
+    ipcRenderer.on('all-reminders', (event, reminders) => {
+      allReminders = reminders
+      renderReminders()
+    })
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeReminders()
+    })
+  </script>
+</body>
+</html>

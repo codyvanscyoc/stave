@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lock In</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    .room-stave {
+      --bg:     #1c1c1e;
+      --bg2:    #252528;
+      --text:   #f0e8d8;
+      --text2:  #9a9080;
+      --text3:  #4e4a44;
+      --accent: #c8922a;
+      --accent2:#a07420;
+      --font:   'JetBrains Mono', monospace;
+      --size:   16px;
+      --weight: 300;
+      --lh:     2.2;
+    }
+
+    .room-manuscript {
+      --bg:     #f5f0e8;
+      --bg2:    #ede8df;
+      --text:   #2c2418;
+      --text2:  #7a6e5e;
+      --text3:  #b0a898;
+      --accent: #8b4513;
+      --accent2:#6b3410;
+      --font:   Georgia, 'Times New Roman', serif;
+      --size:   17px;
+      --weight: 400;
+      --lh:     2.1;
+    }
+
+    .room-midnight {
+      --bg:     #0d1117;
+      --bg2:    #161b22;
+      --text:   #cdd9e5;
+      --text2:  #768390;
+      --text3:  #444c56;
+      --accent: #4caf7d;
+      --accent2:#2e8a57;
+      --font:   'JetBrains Mono', monospace;
+      --size:   16px;
+      --weight: 300;
+      --lh:     2.2;
+    }
+.room-parchment {
+  --bg:     #DFD3B4;
+  --bg2:    #f5edd4;
+  --text:   #3d2b1f;
+  --text2:  #8c7055;
+  --text3:  #c4a882;
+  --accent: #8b4513;
+  --accent2:#6b3410;
+  --font:   Georgia, 'Times New Roman', serif;
+  --size:   17px;
+  --weight: 400;
+  --lh:     2.1;
+}
+
+.room-terminal {
+  --bg:     #000000;
+  --bg2:    #0a0a0a;
+  --text:   #00ff41;
+  --text2:  #00cc33;
+  --text3:  #006616;
+  --accent: #00ff41;
+  --accent2:#00cc33;
+  --font:   'JetBrains Mono', monospace;
+  --size:   15px;
+  --weight: 400;
+  --lh:     2.0;
+}
+    html, body {
+      width: 100%; height: 100vh; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.4s ease, color 0.4s ease;
+    }
+
+    #layout {
+      display: flex;
+      width: 100%; height: 100vh;
+      position: relative;
+    }
+
+    /* ── OUTLINE SIDEBAR ── */
+    #outline-sidebar {
+      width: 200px; flex-shrink: 0;
+      padding: 60px 16px 60px 24px;
+      overflow-y: auto;
+      opacity: 0; transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    #outline-sidebar.visible {
+      opacity: 1; pointer-events: all;
+    }
+
+    #outline-sidebar::-webkit-scrollbar { width: 2px; }
+    #outline-sidebar::-webkit-scrollbar-thumb { background: var(--text3); border-radius: 2px; }
+
+    .outline-label {
+      font-size: 9px; font-weight: 500; letter-spacing: 0.14em;
+      color: var(--text3); text-transform: uppercase; margin-bottom: 14px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .outline-item {
+      font-size: 11px; color: var(--text3); line-height: 1.6;
+      cursor: pointer; padding: 2px 0;
+      font-family: 'JetBrains Mono', monospace;
+      transition: color 0.15s; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+      user-select: none;
+    }
+
+    .outline-item:hover { color: var(--accent); }
+    .outline-item.section { color: var(--accent); font-weight: 500; font-size: 10px; letter-spacing: 0.06em; }
+    .outline-item.sub { padding-left: 10px; font-size: 10px; }
+
+    .outline-divider {
+      height: 0.5px; background: var(--text3); opacity: 0.3;
+      margin: 6px 0; width: 60%;
+    }
+
+    /* ── WRITING COLUMN ── */
+    #write-column {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center;
+      padding: 80px 40px 80px;
+      overflow-y: auto; min-width: 0;
+    }
+
+    #write-column::-webkit-scrollbar { width: 3px; }
+    #write-column::-webkit-scrollbar-thumb { background: var(--text3); opacity: 0.3; border-radius: 2px; }
+
+    #doc-title {
+      font-family: var(--font);
+      font-size: 13px; font-weight: 500;
+      color: var(--text3); letter-spacing: 0.06em;
+      margin-bottom: 40px; text-align: center;
+      width: 100%; max-width: 660px;
+      outline: none; background: transparent; border: none;
+      -webkit-user-select: text; user-select: text;
+      text-transform: uppercase;
+    }
+
+    #editor {
+      font-family: var(--font);
+      font-size: var(--size);
+      font-weight: var(--weight);
+      line-height: var(--lh);
+      color: var(--text);
+      background: transparent;
+      border: none; outline: none; resize: none;
+      width: 100%; max-width: 660px;
+      min-height: calc(100vh - 280px);
+      -webkit-user-select: text; user-select: text;
+      caret-color: var(--accent);
+    }
+
+    #editor::placeholder { color: var(--text3); font-style: italic; }
+
+    /* ── RIGHT PANEL ── */
+    #right-panel {
+      width: 200px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      justify-content: flex-end;
+      padding: 0 24px 32px 16px;
+    }
+
+    #word-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--text3);
+      text-align: right; letter-spacing: 0.06em;
+      margin-bottom: 20px; opacity: 0.6;
+    }
+
+    #room-flash {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--text3);
+      text-align: right; letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px; opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    #width-switcher {
+      display: flex; gap: 6px; justify-content: flex-end;
+      margin-bottom: 12px;
+    }
+
+    #room-switcher {
+      display: flex; gap: 8px; justify-content: flex-end;
+      margin-bottom: 20px;
+    }
+
+    .room-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      cursor: pointer; transition: transform 0.15s, opacity 0.15s;
+      opacity: 0.5; border: 1.5px solid transparent;
+    }
+
+    .room-dot:hover { opacity: 0.9; transform: scale(1.2); }
+    .room-dot.active { opacity: 1; border-color: var(--text2); transform: scale(1.1); }
+
+   #dot-stave       { background: #c8922a; }
+   #dot-manuscript  { background: #8b4513; }
+   #dot-midnight    { background: #4caf7d; }
+   #dot-parchment   { background: #d4a96a; }
+#dot-terminal    { background: #00ff41; }
+
+    #controls {
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+    }
+
+    .ctrl-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 4px 10px; border-radius: 5px;
+      border: 0.5px solid var(--text3); color: var(--text3);
+      background: transparent; cursor: pointer;
+      transition: all 0.15s; letter-spacing: 0.04em; outline: none;
+    }
+
+    .ctrl-btn:hover { color: var(--text); border-color: var(--text2); }
+    .ctrl-btn.active { color: var(--accent); border-color: var(--accent); }
+
+    /* ── TOP BAR ── */
+    #top-bar {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 44px; display: flex; align-items: center;
+      padding: 0 24px; -webkit-app-region: drag; z-index: 100;
+    }
+
+    #stave-mark {
+      font-size: 13px; font-weight: 500;
+      color: var(--accent); opacity: 0.12;
+      letter-spacing: 0.1em;
+      -webkit-app-region: no-drag;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    #top-drag { flex: 1; -webkit-app-region: drag; }
+
+    #exit-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 4px 12px; border-radius: 5px;
+      border: 0.5px solid var(--text3); color: var(--text3);
+      background: transparent; cursor: pointer;
+      transition: all 0.15s; letter-spacing: 0.06em;
+      -webkit-app-region: no-drag; outline: none;
+    }
+
+    #exit-btn:hover { color: var(--text); border-color: var(--text2); }
+  </style>
+</head>
+<body class="room-stave">
+
+  <div id="top-bar">
+    <span id="stave-mark">S†</span>
+    <div id="top-drag"></div>
+    <button id="exit-btn" onclick="exitLockIn()">exit lock in</button>
+  </div>
+
+  <div id="layout">
+
+    <div id="outline-sidebar">
+      <div class="outline-label">outline</div>
+      <div id="outline-items"></div>
+    </div>
+
+    <div id="write-column">
+      <div id="doc-title"></div>
+      <textarea id="editor" placeholder="write..."></textarea>
+    </div>
+
+    <div id="right-panel">
+      <div id="word-count">0 words</div>
+      <div id="room-flash"></div>
+
+      <div id="width-switcher">
+        <button class="ctrl-btn" id="w-narrow" onclick="setWidth('narrow')">narrow</button>
+        <button class="ctrl-btn active" id="w-medium" onclick="setWidth('medium')">medium</button>
+        <button class="ctrl-btn" id="w-wide" onclick="setWidth('wide')">wide</button>
+      </div>
+
+      <div id="room-switcher">
+  <div class="room-dot active" id="dot-stave"       onclick="setRoom('stave')"       title="stave"></div>
+  <div class="room-dot"        id="dot-manuscript"  onclick="setRoom('manuscript')"  title="manuscript"></div>
+  <div class="room-dot"        id="dot-midnight"    onclick="setRoom('midnight')"    title="midnight"></div>
+  <div class="room-dot"        id="dot-parchment"   onclick="setRoom('parchment')"   title="parchment"></div>
+  <div class="room-dot"        id="dot-terminal"    onclick="setRoom('terminal')"    title="terminal"></div>
+</div>
+
+      <div id="controls">
+        <button class="ctrl-btn" id="outline-btn" onclick="toggleOutline()">outline</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron')
+    const fs = require('fs')
+
+    let currentRoom = 'stave'
+    let outlineVisible = false
+    let currentFilepath = null
+    let saveTimer = null
+    let currentMode = 'write'
+
+    ipcRenderer.on('init-lockin', (event, { mode, content, title, filepath }) => {
+      currentMode = mode
+      currentFilepath = filepath
+      document.getElementById('doc-title').textContent = title || 'untitled'
+      document.getElementById('editor').value = content || ''
+      document.getElementById('editor').focus()
+      updateWordCount()
+      updateOutline()
+    })
+
+    function setWidth(size) {
+      const widths = { narrow: '520px', medium: '660px', wide: '860px' }
+      const w = widths[size]
+      document.getElementById('editor').style.maxWidth = w
+      document.getElementById('doc-title').style.maxWidth = w
+      ;['w-narrow','w-medium','w-wide'].forEach(id => {
+        document.getElementById(id).classList.remove('active')
+      })
+      document.getElementById('w-' + size).classList.add('active')
+    }
+
+   function setRoom(room) {
+  currentRoom = room
+  document.body.className = 'room-' + room
+  document.querySelectorAll('.room-dot').forEach(d => d.classList.remove('active'))
+  document.getElementById('dot-' + room).classList.add('active')
+  const flash = document.getElementById('room-flash')
+  flash.textContent = room
+  flash.style.opacity = '1'
+  setTimeout(() => { flash.style.opacity = '0' }, 1200)
+}
+
+// rooms added: parchment + terminal
+
+    function toggleOutline() {
+      outlineVisible = !outlineVisible
+      document.getElementById('outline-sidebar').classList.toggle('visible', outlineVisible)
+      document.getElementById('outline-btn').classList.toggle('active', outlineVisible)
+      if (outlineVisible) updateOutline()
+    }
+
+    function updateOutline() {
+      if (!outlineVisible) return
+      const text = document.getElementById('editor').value
+      const lines = text.split('\n')
+      const container = document.getElementById('outline-items')
+      container.innerHTML = ''
+
+      const SECTION_MARKERS = ['verse','chorus','bridge','pre-chorus','prechorus',
+        'tag','intro','outro','hook','refrain','interlude','breakdown',
+        'section','part','chapter','scene']
+
+      let hasItems = false
+
+      lines.forEach((line, i) => {
+        const trimmed = line.trim().toLowerCase()
+        if (!trimmed) return
+
+        if (line.startsWith('# ') || line.startsWith('## ')) {
+          const item = document.createElement('div')
+          item.className = 'outline-item section'
+          item.textContent = line.replace(/^#+\s/,'').trim()
+          item.onclick = () => jumpToLine(i)
+          container.appendChild(item)
+          hasItems = true
+          return
+        }
+
+        if (/^-{3,}$/.test(trimmed)) {
+          const div = document.createElement('div')
+          div.className = 'outline-divider'
+          container.appendChild(div)
+          return
+        }
+
+        const colonMatch = line.trim().match(/^([A-Za-z\s\-]+):\s*$/)
+        if (colonMatch) {
+          const label = colonMatch[1].trim().toLowerCase()
+          if (SECTION_MARKERS.some(m => label.includes(m)) || line.trim().length < 20) {
+            const item = document.createElement('div')
+            item.className = 'outline-item section'
+            item.textContent = colonMatch[1].trim()
+            item.onclick = () => jumpToLine(i)
+            container.appendChild(item)
+            hasItems = true
+            return
+          }
+        }
+
+        const words = trimmed.split(/\s+/)
+        if (words.length <= 3 && trimmed.length > 2 && !trimmed.includes(',')) {
+          const item = document.createElement('div')
+          item.className = 'outline-item sub'
+          item.textContent = line.trim()
+          item.onclick = () => jumpToLine(i)
+          container.appendChild(item)
+          hasItems = true
+        }
+      })
+
+      if (!hasItems) {
+        const empty = document.createElement('div')
+        empty.style.cssText = 'font-size:10px;color:var(--text3);font-style:italic;font-family:JetBrains Mono,monospace;'
+        empty.textContent = 'write more to generate outline'
+        container.appendChild(empty)
+      }
+    }
+
+    function jumpToLine(lineIndex) {
+      const editor = document.getElementById('editor')
+      const lines = editor.value.split('\n')
+      let pos = 0
+      for (let i = 0; i < lineIndex; i++) pos += lines[i].length + 1
+      editor.focus()
+      editor.setSelectionRange(pos, pos)
+      const lineHeight = parseFloat(getComputedStyle(editor).lineHeight)
+      editor.scrollTop = lineIndex * lineHeight - 200
+    }
+
+    function updateWordCount() {
+      const text = document.getElementById('editor').value
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0
+      const lines = text.split('\n').length
+      document.getElementById('word-count').textContent = `${words} words · ${lines} lines`
+    }
+
+    function autoSave() {
+      clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => {
+        if (!currentFilepath) return
+        try {
+          const raw = fs.readFileSync(currentFilepath, 'utf8')
+          const content = document.getElementById('editor').value
+          let updated
+
+          if (currentMode === 'write') {
+            updated = raw.replace(/(## idea\n)([\s\S]*?)((?:\n## |\n# |$))/,
+              (match, before, old, after) => before + content + '\n' + after)
+            if (!updated.includes(content))
+              updated = raw.replace(/(## idea\n)([\s\S]*)/, '$1' + content + '\n')
+          } else {
+            updated = raw.replace(/(## admin\n)([\s\S]*?)((?:\n## |\n# |$))/,
+              (match, before, old, after) => before + content + '\n' + after)
+            if (!updated.includes(content))
+              updated = raw.replace(/(## admin\n)([\s\S]*)/, '$1' + content + '\n')
+          }
+
+          ipcRenderer.send('lockin-save', { filepath: currentFilepath, content: updated })
+        } catch(e) {}
+      }, 800)
+    }
+
+    function exitLockIn() {
+      const content = document.getElementById('editor').value
+      ipcRenderer.send('close-lockin', content)
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') exitLockIn()
+      if (e.key === 's' && e.metaKey) { e.preventDefault(); autoSave() }
+    })
+
+    document.getElementById('editor').addEventListener('input', () => {
+      updateWordCount()
+      autoSave()
+      if (outlineVisible) updateOutline()
+    })
+  </script>
+</body>
+</html>

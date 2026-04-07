@@ -1,0 +1,45 @@
+{
+  "name": "stave",
+  "version": "1.0.0",
+  "description": "A minimal note app for creative and admin thinking",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.codyvanscyoc.stave",
+    "productName": "Stave",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg",
+      "icon": "icon.png"
+    },
+    "files": [
+      "main.js",
+      "index.html",
+      "renderer.js",
+      "search.html",
+      "bible-index.json",
+      "build-index.js",
+      "node_modules/**/*"
+    ],
+    "dmg": {
+      "title": "Stave"
+    }
+  },
+  "keywords": [],
+  "author": "Cody Van Scyoc",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1"
+  },
+  "dependencies": {
+    "cmudict": "^1.0.2",
+    "natural": "^8.0.1",
+    "wordnet-db": "^3.1.14",
+    "world-english-bible": "*"
+  }
+}
