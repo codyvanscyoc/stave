@@ -382,13 +382,7 @@
     #add-phase-btn:hover { color: var(--text2); border-color: var(--border2); }
 
     /* ── TABS BAR (plan notes) ── */
-    #tabs-bar {
-      position: fixed; bottom: 0; left: 0; right: 0; height: 48px;
-      background: var(--bg); border-top: 0.5px solid var(--border);
-      display: flex; align-items: center;
-      padding: 0 20px; gap: 12px; overflow-x: auto;
-      -webkit-app-region: no-drag; z-index: 100;
-    }
+   
 
     .plan-tab-dot {
       display: flex; flex-direction: column; align-items: center;
@@ -548,8 +542,7 @@
 
   </div>
 
-  <!-- PLAN TABS BAR -->
-  <div id="tabs-bar"></div>
+  
 
   <!-- DATE POPUP -->
   <div id="date-popup">
@@ -620,7 +613,7 @@
       tasks = data.tasks || []
       phases = data.phases || []
       links = data.links || []
-      planTabs = data.planTabs || []
+      
 
       document.getElementById('project-name').value = currentTitle
       document.getElementById('plan-context').value = currentPlanContext
@@ -631,7 +624,7 @@
       renderPhases()
       renderTimeline()
       renderLinks()
-      renderTabsDots()
+     
 
       document.getElementById('braindump-area').focus()
     })
@@ -696,34 +689,7 @@
       ipcRenderer.send('close-lockin-plan', data)
     }
 
-    // ── PLAN TABS DOTS ──
-    function renderTabsDots() {
-      const bar = document.getElementById('tabs-bar')
-      bar.innerHTML = ''
-
-      planTabs.forEach((tab, i) => {
-        const wrap = document.createElement('div')
-        wrap.className = 'plan-tab-dot' + (tab.filepath === currentTabFilepath ? ' active' : '')
-
-        const circle = document.createElement('div')
-        circle.className = 'plan-tab-dot-circle'
-
-        const label = document.createElement('div')
-        label.className = 'plan-tab-dot-label'
-        label.textContent = tab.title || 'untitled'
-
-        wrap.appendChild(circle)
-        wrap.appendChild(label)
-
-        wrap.onclick = () => {
-          if (tab.filepath === currentTabFilepath) return
-          saveNow()
-          ipcRenderer.send('switch-plan-tab', { index: tab.index })
-        }
-
-        bar.appendChild(wrap)
-      })
-    }
+    
 
     // ── PHASES ──
     function renderPhases() {

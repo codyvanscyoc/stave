@@ -8,12 +8,21 @@
     "build": "electron-builder --mac"
   },
   "build": {
+    
     "appId": "com.codyvanscyoc.stave",
     "productName": "Stave",
     "mac": {
       "category": "public.app-category.productivity",
       "target": "dmg",
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "fileAssociations": [
+  {
+    "ext": "md",
+    "name": "Markdown",
+    "description": "Markdown Note",
+    "role": "Editor"
+  }
+]
     },
    "files": [
   "main.js",

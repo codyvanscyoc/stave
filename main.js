@@ -157,11 +157,10 @@ function getNotesList(mode) {
 }
 
 function toggleWindow() {
+  if (!win || win.isDestroyed()) return
   if (win.isVisible()) {
-    if (winMode === 'hide') {
-      win.hide()
-    } else {
-      // bring to current display
+    if (winMode === 'hide') win.hide()
+    else {
       positionWindow()
       win.focus()
     }
@@ -173,6 +172,7 @@ function toggleWindow() {
 }
 
 function positionWindow() {
+  if (!win || win.isDestroyed()) return
   const prefs = loadPrefs()
   const cursor = screen.getCursorScreenPoint()
   const display = screen.getDisplayNearestPoint(cursor)
@@ -266,6 +266,7 @@ ipcMain.on('open-lockin-plan', (event, data) => {
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   })
   lockInPlanWin.loadFile('lockin-plan.html')
+lockInPlanWin.webContents.openDevTools({ mode: 'detach' })
   lockInPlanWin.once('ready-to-show', () => {
     lockInPlanWin.show()
     lockInPlanWin.focus()
@@ -280,12 +281,13 @@ ipcMain.on('close-lockin-plan', (event, data) => {
 })
 ipcMain.on('switch-plan-tab', (event, { index }) => {
   if (win) {
-    win.webContents.send('switch-to-tab', { index })
-    if (lockInPlanWin && !lockInPlanWin.isDestroyed()) {
-      // reload lock in with new tab data
-      win.webContents.send('reload-lockin-plan', { index })
-    }
+    win.webContents.send('reload-lockin-plan', { index })
   }
+  ipcMain.on('push-lockin-plan-data', (event, data) => {
+  if (lockInPlanWin && !lockInPlanWin.isDestroyed()) {
+    lockInPlanWin.webContents.send('init-lockin-plan', data)
+  }
+})
 })
 ipcMain.on('lockin-plan-save', (event, { filepath, content }) => {
   try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
@@ -518,6 +520,16 @@ app.on('web-contents-created', (event, contents) => {
   })
 })
 app.whenReady().then(() => {
+  app.on('open-file', (event, filePath) => {
+  event.preventDefault()
+  if (filePath.endsWith('.md')) {
+    if (win && !win.isDestroyed()) {
+      win.show()
+      win.focus()
+      win.webContents.send('open-file-path', filePath)
+    }
+  }
+})
   ensureDirs()
   createTray()
   createWindow()
