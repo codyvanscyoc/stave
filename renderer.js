@@ -543,11 +543,97 @@ function handleBullet(e) {
     e.preventDefault()
     const area = e.target
     const pos = area.selectionStart
-    area.value = area.value.slice(0, pos) + '    ' + area.value.slice(pos)
-    area.selectionStart = area.selectionEnd = pos + 4
+    const text = area.value
+    const lineStart = text.lastIndexOf('\n', pos-1) + 1
+    const lineEnd = text.indexOf('\n', pos)
+    const end = lineEnd === -1 ? text.length : lineEnd
+    const line = text.slice(lineStart, end)
+
+    if (e.shiftKey) {
+      // unindent
+      if (line.startsWith('    ')) {
+        area.value = text.slice(0, lineStart) + line.slice(4) + text.slice(end)
+        area.selectionStart = area.selectionEnd = Math.max(lineStart, pos - 4)
+      }
+    } else {
+      // indent
+      area.value = text.slice(0, lineStart) + '    ' + line + text.slice(end)
+      area.selectionStart = area.selectionEnd = pos + 4
+    }
     autoSave()
     return
   }
+
+  if (e.key === 'Enter') {
+    const area = e.target
+    const pos = area.selectionStart
+    const text = area.value
+    const lineStart = text.lastIndexOf('\n', pos-1) + 1
+    const line = text.slice(lineStart, pos)
+
+    // continue bullet •
+    const bulletMatch = line.match(/^(\s*)(•)\s+/)
+    if (bulletMatch) {
+      // if line is empty bullet, break out
+      if (line.trim() === '•') {
+        e.preventDefault()
+        area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+        area.selectionStart = area.selectionEnd = lineStart + 1
+        autoSave()
+        return
+      }
+      e.preventDefault()
+      const indent = bulletMatch[1]
+      const insert = '\n' + indent + '• '
+      area.value = text.slice(0, pos) + insert + text.slice(pos)
+      area.selectionStart = area.selectionEnd = pos + insert.length
+      autoSave()
+      return
+    }
+
+    // continue numbered list
+    const numMatch = line.match(/^(\s*)(\d+)\.\s+/)
+    if (numMatch) {
+      if (line.trim() === numMatch[2] + '.') {
+        e.preventDefault()
+        area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+        area.selectionStart = area.selectionEnd = lineStart + 1
+        autoSave()
+        return
+      }
+      e.preventDefault()
+      const indent = numMatch[1]
+      const nextNum = parseInt(numMatch[2]) + 1
+      const insert = '\n' + indent + nextNum + '. '
+      area.value = text.slice(0, pos) + insert + text.slice(pos)
+      area.selectionStart = area.selectionEnd = pos + insert.length
+      autoSave()
+      return
+    }
+
+    // continue dash list
+    const dashMatch = line.match(/^(\s*)-\s+/)
+    if (dashMatch) {
+      if (line.trim() === '-') {
+        e.preventDefault()
+        area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+        area.selectionStart = area.selectionEnd = lineStart + 1
+        autoSave()
+        return
+      }
+      e.preventDefault()
+      const indent = dashMatch[1]
+      const insert = '\n' + indent + '- '
+      area.value = text.slice(0, pos) + insert + text.slice(pos)
+      area.selectionStart = area.selectionEnd = pos + insert.length
+      autoSave()
+      return
+    }
+
+    return
+  }
+
+  // dash-space → amber bullet
   if (e.key !== ' ') return
   const area = e.target
   const pos = area.selectionStart
@@ -555,7 +641,7 @@ function handleBullet(e) {
   const lineStart = text.lastIndexOf('\n', pos-1) + 1
   if (text.slice(lineStart, pos) === '-') {
     e.preventDefault()
-    const bullet = '•  '
+    const bullet = '• '
     area.value = text.slice(0, lineStart) + bullet + text.slice(pos)
     area.selectionStart = area.selectionEnd = lineStart + bullet.length
     autoSave()
@@ -591,14 +677,23 @@ function openLockIn() {
   if (!tab) return
   saveCurrentTab()
 
-  if (tab.mode === 'plan' || tab.mode === 'project') {
+  if (tab.mode === 'plan') {
+    // pass full plan tab data including phases and links
+    const planTabs = tabs
+      .map((t, i) => ({ title: t.title || 'untitled', filepath: t.filepath, index: i, mode: t.mode }))
+      .filter(t => t.mode === 'plan')
+
     ipcRenderer.send('open-lockin-plan', {
-      content: document.getElementById('admin-area').value,
       title: tab.title,
-      filepath: tab.filepath
+      filepath: tab.filepath,
+      admin: tab.admin || document.getElementById('admin-area').value,
+      planContext: tab.planContext || document.getElementById('plan-context-input').value,
+      tasks: getTasksFromDOM(),
+      phases: tab.phases || [],
+      links: tab.links || [],
+      planTabs
     })
   } else {
-    // write or longform both open lock in write
     ipcRenderer.send('open-lockin', {
       mode: tab.mode,
       content: document.getElementById('idea-area').value,
@@ -640,7 +735,7 @@ function emptyTab(mode) {
   return {
     filename: null, filepath: null, mode: mode || newTabMode,
     title: '', idea: '', context: '', tags: [],
-    planContext: '', admin: '', tasks: []
+    planContext: '', admin: '', tasks: [], phases: [], links: []
   }
 }
 
@@ -686,13 +781,33 @@ function currentTags() {
 
 function serializeTab(tab) {
   if (tab.mode === 'write' || tab.mode === 'longform') {
-    return `# ${tab.title || 'untitled'}\ntype: write\ntags: ${(tab.tags||[]).join(', ')}\n\n## idea\n${tab.idea || ''}\n\n## context\n${tab.context || ''}\n`
+    return `# ${tab.title || 'untitled'}\ntype: ${tab.mode}\ntags: ${(tab.tags||[]).join(', ')}\n\n## idea\n${tab.idea || ''}\n\n## context\n${tab.context || ''}\n`
   } else {
-    let md = `# ${tab.title || 'untitled'}\ntype: plan\ncontext1: ${tab.planContext || ''}\n\n## admin\n${tab.admin || ''}\n\n## tasks\n`
-    ;(tab.tasks || []).forEach(t => {
+    const planContext = tab.planContext || ''
+    const admin = tab.admin || ''
+    const tasks = tab.tasks || []
+    const phases = tab.phases || []
+    const links = tab.links || []
+
+    let md = `# ${tab.title || 'untitled'}\ntype: plan\ncontext1: ${planContext}\n\n## admin\n${admin}\n\n## tasks\n`
+    tasks.forEach(t => {
       md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
       if (t.reminder) md += `  reminder: ${t.reminder}\n`
     })
+
+    md += `\n## phases\n`
+    phases.forEach(phase => {
+      md += `### ${phase.name}\n`
+      if (phase.start) md += `start: ${phase.start}\n`
+      if (phase.deadline) md += `deadline: ${phase.deadline}\n`
+      phase.tasks.forEach(t => {
+        md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+      })
+    })
+
+    md += `\n## links\n`
+    links.forEach(l => { md += `- ${l}\n` })
+
     return md
   }
 }
@@ -872,6 +987,7 @@ function init() {
   loadWordNet()
   loadBibleIndex()
   ensureDirs()
+  
 
   const prefs = loadPrefs()
   if (prefs.winMode) { winModeState = prefs.winMode; updateWinModeBtns() }
@@ -917,6 +1033,48 @@ function init() {
   renderTabBar()
   bindKeys()
   bindSelection()
+
+  ipcRenderer.on('reload-lockin-plan', (event, { index }) => {
+    switchTab(index)
+    openLockIn()
+  })
+ipcRenderer.on('drawer-lookup', (event, word) => {
+  const clean = word.replace(/[^a-z]/gi,'').toLowerCase()
+  if (clean.length < 2) return
+
+  const { perfect, near } = findRhymes(clean)
+  const sylCount = countSyllables(clean)
+
+  // get scripture
+  const scriptureResults = bibleIndex ? (bibleIndex[clean] || []).slice(0, 8) : []
+
+  // get songs words matches
+  const wordSig = getRhymeSignature(clean)
+  const songsResults = Object.values(SONGS_WORDS).map(group => ({
+    label: group.label,
+    synonyms: group.synonyms.map(w => ({
+      word: w,
+      rhymes: wordSig && getRhymeSignature(w.split(' ')[0]) === wordSig
+    })),
+    expand: group.expand
+  }))
+
+  getSynonyms(clean).then(syns => {
+    const synResults = syns.map(syn => ({
+      word: syn,
+      rhymes: wordSig && getRhymeSignature(syn.split(' ')[0]) === wordSig
+    }))
+
+    ipcRenderer.send('lockin-drawer-results', {
+      word: clean,
+      syllables: sylCount,
+      rhymes: { perfect, near },
+      synonyms: synResults,
+      scripture: scriptureResults,
+      songs: songsResults
+    })
+  })
+})
   rescheduleReminders()
 
   ipcRenderer.on('load-note', (event, { filename, mode }) => {
@@ -952,8 +1110,23 @@ function init() {
     autoSave()
   })
 
-  ipcRenderer.on('lockin-plan-closed', (event, data) => {
-    // Lock In plan is independent — just close, no data merge needed
+ ipcRenderer.on('lockin-plan-closed', (event, data) => {
+    if (!data) return
+    const tab = tabs[currentTabIndex]
+    if (!tab || tab.mode !== 'plan') return
+
+    // update tab with all data from Lock In
+    tab.admin = data.admin || ''
+    tab.planContext = data.planContext || ''
+    tab.tasks = data.tasks || []
+    tab.phases = data.phases || []
+    tab.links = data.links || []
+
+    // update DOM
+    document.getElementById('admin-area').value = tab.admin
+    document.getElementById('plan-context-input').value = tab.planContext
+    renderTasks(tab.tasks)
+    autoSave()
   })
 
   ipcRenderer.on('add-selection-as-task', (event, text) => {
@@ -1008,7 +1181,7 @@ function loadNoteAsTab(filename, mode) {
 function parseNote(raw, mode) {
   const lines = raw.split('\n')
   let title='', idea='', context='', admin='', planContext=''
-  let tags=[], tasks=[], section=''
+  let tags=[], tasks=[], phases=[], links=[], section='', currentPhase=null
 
   lines.forEach(line => {
     if (line.startsWith('# '))          { title = line.slice(2).trim(); return }
@@ -1019,6 +1192,8 @@ function parseNote(raw, mode) {
     if (line === '## context')          { section = 'context'; return }
     if (line === '## admin')            { section = 'admin'; return }
     if (line === '## tasks')            { section = 'tasks'; return }
+    if (line === '## phases')           { section = 'phases'; return }
+    if (line === '## links')            { section = 'links'; return }
 
     if      (section === 'idea')    idea    += (idea    ? '\n' : '') + line
     else if (section === 'context') context += (context ? '\n' : '') + line
@@ -1029,9 +1204,24 @@ function parseNote(raw, mode) {
       else if (line.startsWith('  reminder: ') && tasks.length > 0)
         tasks[tasks.length-1].reminder = line.slice(12).trim()
     }
+    else if (section === 'phases') {
+      if (line.startsWith('### ')) {
+        currentPhase = { name: line.slice(4).trim(), start: null, deadline: null, tasks: [] }
+        phases.push(currentPhase)
+      } else if (line.startsWith('start: ') && currentPhase) {
+        currentPhase.start = line.slice(7).trim()
+      } else if (line.startsWith('deadline: ') && currentPhase) {
+        currentPhase.deadline = line.slice(10).trim()
+      } else if ((line.startsWith('- [ ] ') || line.startsWith('- [x] ')) && currentPhase) {
+        currentPhase.tasks.push({ text: line.slice(6).trim(), done: line.startsWith('- [x]') })
+      }
+    }
+    else if (section === 'links') {
+      if (line.startsWith('- ')) links.push(line.slice(2).trim())
+    }
   })
 
-  return { title, idea: idea.trim(), context: context.trim(), admin: admin.trim(), planContext, tags, tasks }
+  return { title, idea: idea.trim(), context: context.trim(), admin: admin.trim(), planContext, tags, tasks, phases, links }
 }
 
 function autoSave() {
@@ -1177,17 +1367,28 @@ const TIME_WORDS = [
 ]
 
 function scoreSentence(s) {
-  const lower = s.toLowerCase()
+  const lower = s.toLowerCase().trim()
+  
+  // bullet lines are always tasks
+  if (s.trim().startsWith('•') || s.trim().startsWith('-')) return 10
+  
+  // >> flag is always a task
   if (s.trim().startsWith('>>')) return 10
+
   let score = 0
-  ACTION_WORDS.forEach(w => { if (lower.includes(w)) score += 2 })
-  TIME_WORDS.forEach(w => { if (lower.includes(w)) score += 1 })
-  const first = s.trim().split(' ')[0].toLowerCase()
+
+  // action word at START of sentence = high priority
+  const firstWord = lower.split(' ')[0]
+  const firstTwo = lower.split(' ').slice(0,2).join(' ')
   const imperatives = ['call','send','write','email','get','buy','fix','check','review',
     'schedule','book','contact','finish','complete','submit','update','order','record',
     'print','demo','prepare','add','promote','post','share','create','build','design',
-    'launch','film','edit','message','meet','coordinate','finalize','publish','draft']
-  if (imperatives.includes(first)) score += 2
+    'launch','film','message','meet','finalize','draft','research','follow','invite',
+    'confirm','deliver','print','edit','assign','coordinate','publish','request']
+  
+  if (imperatives.includes(firstWord)) score += 5
+  if (['need to','have to','must','should','follow up','reach out'].includes(firstTwo)) score += 4
+
   return score
 }
 
@@ -1198,7 +1399,7 @@ function extractTasks() {
   let added = 0
   text.split(/(?<=[.!?\n])/).map(s => s.trim()).filter(s => s.length > 4)
     .map(s => ({ text: s.replace(/^>>\s*/,'').trim(), score: scoreSentence(s) }))
-    .filter(s => s.score >= 2 && s.text.length > 0 && !existing.includes(s.text.trim().toLowerCase()))
+    .filter(s => s.score >= 4 && s.text.length > 0 && !existing.includes(s.text.trim().toLowerCase()))
     .forEach(c => { addTask(c.text, false, null); added++ })
   if (added > 0) { updateTaskCount(); autoSave() }
   else {

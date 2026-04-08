@@ -158,7 +158,13 @@ function getNotesList(mode) {
 
 function toggleWindow() {
   if (win.isVisible()) {
-    if (winMode === 'hide') win.hide()
+    if (winMode === 'hide') {
+      win.hide()
+    } else {
+      // bring to current display
+      positionWindow()
+      win.focus()
+    }
   } else {
     positionWindow()
     win.show()
@@ -168,13 +174,24 @@ function toggleWindow() {
 
 function positionWindow() {
   const prefs = loadPrefs()
+  const cursor = screen.getCursorScreenPoint()
+  const display = screen.getDisplayNearestPoint(cursor)
+  const { workArea } = display
+
   if (prefs.posX !== null && prefs.posY !== null) {
-    win.setPosition(prefs.posX, prefs.posY)
-    return
+    // check if saved position is on a connected display
+    const savedDisplay = screen.getDisplayNearestPoint({ x: prefs.posX, y: prefs.posY })
+    if (savedDisplay.id === display.id) {
+      win.setPosition(prefs.posX, prefs.posY)
+      return
+    }
   }
-  const { width } = screen.getPrimaryDisplay().workAreaSize
+
   const wb = win.getBounds()
-  win.setPosition(width - wb.width - 10, 10)
+  win.setPosition(
+    workArea.x + workArea.width - wb.width - 10,
+    workArea.y + 10
+  )
 }
 
 function openSearch() {
@@ -261,7 +278,15 @@ ipcMain.on('close-lockin-plan', (event, data) => {
   if (win) win.webContents.send('lockin-plan-closed', data)
   if (lockInPlanWin && !lockInPlanWin.isDestroyed()) lockInPlanWin.close()
 })
-
+ipcMain.on('switch-plan-tab', (event, { index }) => {
+  if (win) {
+    win.webContents.send('switch-to-tab', { index })
+    if (lockInPlanWin && !lockInPlanWin.isDestroyed()) {
+      // reload lock in with new tab data
+      win.webContents.send('reload-lockin-plan', { index })
+    }
+  }
+})
 ipcMain.on('lockin-plan-save', (event, { filepath, content }) => {
   try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
 })
@@ -297,6 +322,15 @@ ipcMain.on('close-lockin', (event, updatedContent) => {
 
 ipcMain.on('lockin-save', (event, { filepath, content }) => {
   try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+})
+ipcMain.on('lockin-drawer-lookup', (event, word) => {
+  if (win) win.webContents.send('drawer-lookup', word)
+})
+
+ipcMain.on('lockin-drawer-results', (event, data) => {
+  if (lockInWin && !lockInWin.isDestroyed()) {
+    lockInWin.webContents.send('drawer-results', data)
+  }
 })
 ipcMain.on('close-search', () => {
   if (searchWin && !searchWin.isDestroyed()) searchWin.close()
@@ -487,10 +521,35 @@ app.whenReady().then(() => {
   ensureDirs()
   createTray()
   createWindow()
-  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+ globalShortcut.register('CommandOrControl+Shift+Space', () => {
     if (win.isVisible()) { if (winMode === 'hide') win.hide() }
     else { positionWindow(); win.show(); win.focus() }
   })
+
+  globalShortcut.register('CommandOrControl+Shift+S', () => {
+    const cursor = screen.getCursorScreenPoint()
+    const display = screen.getDisplayNearestPoint(cursor)
+    const { workArea } = display
+
+    ;[win, searchWin, remindersWin, lockInWin, lockInPlanWin].forEach((w) => {
+      if (w && !w.isDestroyed() && w.isVisible()) {
+        const bounds = w.getBounds()
+        w.setPosition(
+          Math.min(workArea.x + workArea.width - bounds.width - 10,
+            Math.max(workArea.x, bounds.x)),
+          Math.min(workArea.y + workArea.height - bounds.height - 10,
+            Math.max(workArea.y, bounds.y))
+        )
+      }
+    })
+
+    if (win && !win.isDestroyed()) {
+      positionWindow()
+      win.show()
+      win.focus()
+    }
+  })
+
   app.dock.hide()
 })
 

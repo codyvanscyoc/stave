@@ -169,6 +169,115 @@
 
     #editor::placeholder { color: var(--text3); font-style: italic; }
 
+    /* ── SONGWRITER DRAWER ── */
+#drawer-panel {
+  width: 0; flex-shrink: 0; overflow: hidden;
+  transition: width 0.25s ease;
+  border-left: 0.5px solid var(--border);
+  display: flex; flex-direction: column;
+  background: var(--bg2);
+}
+
+#drawer-panel.open { width: 280px; }
+
+#drawer-toggle {
+  font-family: 'JetBrains Mono', monospace; font-size: 14px;
+  padding: 0 10px; background: transparent; border: none;
+  color: var(--text3); cursor: pointer; outline: none;
+  transition: color 0.15s; -webkit-app-region: no-drag;
+  letter-spacing: 2px; line-height: 1;
+}
+
+#drawer-toggle:hover { color: var(--accent); }
+#drawer-toggle.open { color: var(--accent); }
+
+#drawer-inner {
+  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+}
+
+#drawer-word-display {
+  font-size: 15px; font-weight: 500; color: var(--accent);
+  letter-spacing: 0.05em; padding: 14px 14px 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+#drawer-meta-display {
+  font-size: 10px; color: var(--text3);
+  padding: 0 14px 10px; font-family: 'JetBrains Mono', monospace;
+}
+
+.drawer-source-toggle {
+  display: flex; border-top: 0.5px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drawer-src-btn {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  padding: 5px 0; background: transparent; color: var(--text3);
+  border: none; cursor: pointer; transition: all 0.15s;
+  flex: 1; text-align: center; outline: none;
+}
+
+.drawer-src-btn.active { background: var(--bg3); color: var(--text); }
+.drawer-src-btn:hover:not(.active) { color: var(--text2); }
+
+#drawer-scroll {
+  flex: 1; overflow-y: auto; padding: 10px 14px;
+}
+
+#drawer-scroll::-webkit-scrollbar { width: 2px; }
+#drawer-scroll::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.d-section { margin-bottom: 12px; }
+
+.d-label {
+  font-size: 9px; font-weight: 500; letter-spacing: 0.12em;
+  color: var(--text3); text-transform: uppercase; margin-bottom: 5px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.d-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.d-chip {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  padding: 2px 7px; border-radius: 8px;
+  border: 0.5px solid var(--border2); color: var(--text2);
+  background: transparent; cursor: pointer; transition: all 0.12s;
+}
+
+.d-chip:hover { color: var(--text); border-color: var(--border2); background: var(--bg3); }
+.d-chip.perfect { border-color: var(--accent2); color: var(--accent); background: var(--accentbg, rgba(200,146,42,0.1)); }
+.d-chip.rhymes { border-color: var(--accent2); color: var(--accent); background: var(--accentbg, rgba(200,146,42,0.1)); }
+
+.d-verse {
+  padding: 6px 0; border-bottom: 0.5px solid var(--border); cursor: pointer;
+}
+
+.d-verse:last-child { border-bottom: none; }
+.d-verse:hover { opacity: 0.8; }
+
+.d-verse-ref {
+  font-size: 10px; font-weight: 500; color: var(--accent);
+  margin-bottom: 2px; font-family: 'JetBrains Mono', monospace;
+}
+
+.d-verse-text {
+  font-size: 10px; color: var(--text2); line-height: 1.5;
+  font-family: 'JetBrains Mono', monospace; font-weight: 300;
+}
+
+.d-verse-text mark {
+  background: rgba(200,146,42,0.15); color: var(--accent);
+  border-radius: 2px; padding: 0 1px;
+}
+
+.d-empty { font-size: 10px; color: var(--text3); font-style: italic; }
+
+.d-group-label {
+  font-size: 9px; color: var(--text3); margin-bottom: 3px;
+  font-family: 'JetBrains Mono', monospace;
+}
     /* ── RIGHT PANEL ── */
     #right-panel {
       width: 200px; flex-shrink: 0;
@@ -244,6 +353,7 @@
   <div id="top-bar">
     <span id="stave-mark">S†</span>
     <div id="top-drag"></div>
+    <button id="drawer-toggle" onclick="toggleDrawer()" title="songwriter tools">≡</button>
     <button id="exit-btn" onclick="exitLockIn()">exit lock in</button>
   </div>
 
@@ -258,6 +368,20 @@
   </div>
 
   <div id="layout">
+    <div id="drawer-panel">
+      <div id="drawer-inner">
+        <div id="drawer-word-display">highlight a word</div>
+        <div id="drawer-meta-display"></div>
+        <div class="drawer-source-toggle">
+          <button class="drawer-src-btn active" id="dsrc-general" onclick="setDrawerSource('general')">general</button>
+          <button class="drawer-src-btn" id="dsrc-songs" onclick="setDrawerSource('songs')">songs</button>
+          <button class="drawer-src-btn" id="dsrc-scripture" onclick="setDrawerSource('scripture')">scripture</button>
+        </div>
+        <div id="drawer-scroll">
+          <div class="d-empty">highlight a word in your writing to look it up</div>
+        </div>
+      </div>
+    </div>
 
     <div id="outline-sidebar">
       <div class="outline-label">outline</div>
@@ -333,6 +457,196 @@
     let saveTimer = null
     let currentMode = 'write'
     let fmtModes = {}
+    let drawerOpen = false
+    let drawerSource = 'general'
+    let lastDrawerData = null
+
+    function toggleDrawer() {
+      drawerOpen = !drawerOpen
+      document.getElementById('drawer-panel').classList.toggle('open', drawerOpen)
+      document.getElementById('drawer-toggle').classList.toggle('open', drawerOpen)
+    }
+
+    function setDrawerSource(src) {
+      drawerSource = src
+      ;['general','songs','scripture'].forEach(s => {
+        document.getElementById('dsrc-' + s).classList.toggle('active', s === src)
+      })
+      if (lastDrawerData) renderDrawerResults(lastDrawerData)
+    }
+
+    ipcRenderer.on('drawer-results', (event, data) => {
+      lastDrawerData = data
+      document.getElementById('drawer-word-display').textContent = data.word
+      document.getElementById('drawer-meta-display').textContent = `${data.syllables} syl`
+      renderDrawerResults(data)
+    })
+
+    function renderDrawerResults(data) {
+      const scroll = document.getElementById('drawer-scroll')
+      scroll.innerHTML = ''
+
+      if (drawerSource === 'general') {
+        // rhymes
+        const rhymeSection = document.createElement('div')
+        rhymeSection.className = 'd-section'
+        rhymeSection.innerHTML = '<div class="d-label">perfect rhymes</div>'
+        const perfectChips = document.createElement('div')
+        perfectChips.className = 'd-chips'
+        if (data.rhymes.perfect.length) {
+          data.rhymes.perfect.forEach(w => {
+            const chip = document.createElement('div')
+            chip.className = 'd-chip perfect'
+            chip.textContent = w
+            chip.onclick = () => insertWordToEditor(w)
+            perfectChips.appendChild(chip)
+          })
+        } else {
+          perfectChips.innerHTML = '<span class="d-empty">none found</span>'
+        }
+        rhymeSection.appendChild(perfectChips)
+
+        const nearLabel = document.createElement('div')
+        nearLabel.className = 'd-label'
+        nearLabel.style.marginTop = '8px'
+        nearLabel.textContent = 'near rhymes'
+        rhymeSection.appendChild(nearLabel)
+
+        const nearChips = document.createElement('div')
+        nearChips.className = 'd-chips'
+        if (data.rhymes.near.length) {
+          data.rhymes.near.forEach(w => {
+            const chip = document.createElement('div')
+            chip.className = 'd-chip'
+            chip.textContent = w
+            chip.onclick = () => insertWordToEditor(w)
+            nearChips.appendChild(chip)
+          })
+        } else {
+          nearChips.innerHTML = '<span class="d-empty">none found</span>'
+        }
+        rhymeSection.appendChild(nearChips)
+        scroll.appendChild(rhymeSection)
+
+        // synonyms
+        const synSection = document.createElement('div')
+        synSection.className = 'd-section'
+        synSection.innerHTML = '<div class="d-label">synonyms</div>'
+        const synChips = document.createElement('div')
+        synChips.className = 'd-chips'
+        if (data.synonyms.length) {
+          data.synonyms.forEach(s => {
+            const chip = document.createElement('div')
+            chip.className = 'd-chip' + (s.rhymes ? ' rhymes' : '')
+            chip.textContent = s.word
+            chip.onclick = () => insertWordToEditor(s.word)
+            synChips.appendChild(chip)
+          })
+        } else {
+          synChips.innerHTML = '<span class="d-empty">none found</span>'
+        }
+        synSection.appendChild(synChips)
+        scroll.appendChild(synSection)
+
+      } else if (drawerSource === 'songs') {
+        // rhymes first
+        const rhymeSection = document.createElement('div')
+        rhymeSection.className = 'd-section'
+        rhymeSection.innerHTML = '<div class="d-label">rhymes</div>'
+        const chips = document.createElement('div')
+        chips.className = 'd-chips'
+        data.rhymes.perfect.forEach(w => {
+          const chip = document.createElement('div')
+          chip.className = 'd-chip perfect'
+          chip.textContent = w
+          chip.onclick = () => insertWordToEditor(w)
+          chips.appendChild(chip)
+        })
+        rhymeSection.appendChild(chips)
+        scroll.appendChild(rhymeSection)
+
+        // songs categories
+        data.songs.forEach(group => {
+          const section = document.createElement('div')
+          section.className = 'd-section'
+          section.innerHTML = `<div class="d-label">${group.label}</div>`
+          const synChips = document.createElement('div')
+          synChips.className = 'd-chips'
+          group.synonyms.forEach(s => {
+            const chip = document.createElement('div')
+            chip.className = 'd-chip' + (s.rhymes ? ' rhymes' : '')
+            chip.textContent = s.word
+            chip.onclick = () => insertWordToEditor(s.word)
+            synChips.appendChild(chip)
+          })
+          section.appendChild(synChips)
+
+          if (group.expand.length) {
+            const expandLabel = document.createElement('div')
+            expandLabel.className = 'd-group-label'
+            expandLabel.style.marginTop = '4px'
+            expandLabel.textContent = 'expand'
+            section.appendChild(expandLabel)
+            const expandChips = document.createElement('div')
+            expandChips.className = 'd-chips'
+            group.expand.forEach(w => {
+              const chip = document.createElement('div')
+              chip.className = 'd-chip'
+              chip.textContent = w
+              chip.onclick = () => insertWordToEditor(w)
+              expandChips.appendChild(chip)
+            })
+            section.appendChild(expandChips)
+          }
+
+          scroll.appendChild(section)
+        })
+
+      } else if (drawerSource === 'scripture') {
+        const rhymeSection = document.createElement('div')
+        rhymeSection.className = 'd-section'
+        rhymeSection.innerHTML = '<div class="d-label">rhymes</div>'
+        const chips = document.createElement('div')
+        chips.className = 'd-chips'
+        data.rhymes.perfect.forEach(w => {
+          const chip = document.createElement('div')
+          chip.className = 'd-chip perfect'
+          chip.textContent = w
+          chip.onclick = () => insertWordToEditor(w)
+          chips.appendChild(chip)
+        })
+        rhymeSection.appendChild(chips)
+        scroll.appendChild(rhymeSection)
+
+        const scriptSection = document.createElement('div')
+        scriptSection.className = 'd-section'
+        if (!data.scripture.length) {
+          scriptSection.innerHTML = `<div class="d-label">scripture</div><div class="d-empty">"${data.word}" not found</div>`
+        } else {
+          scriptSection.innerHTML = `<div class="d-label">scripture — ${data.scripture.length} results</div>`
+          data.scripture.forEach(v => {
+            const verse = document.createElement('div')
+            verse.className = 'd-verse'
+            const highlighted = v.text.replace(
+              new RegExp(data.word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
+              m => `<mark>${m}</mark>`
+            )
+            verse.innerHTML = `<div class="d-verse-ref">${v.ref}</div><div class="d-verse-text">${highlighted}</div>`
+            verse.onclick = () => insertWordToEditor(v.ref)
+            scriptSection.appendChild(verse)
+          })
+        }
+        scroll.appendChild(scriptSection)
+      }
+    }
+
+    function insertWordToEditor(word) {
+      const editor = document.getElementById('editor')
+      const s = editor.selectionStart, e = editor.selectionEnd
+      editor.value = editor.value.slice(0,s) + word + editor.value.slice(e)
+      editor.selectionStart = editor.selectionEnd = s + word.length
+      editor.focus(); autoSave()
+    }
 
     ipcRenderer.on('init-lockin', (event, { mode, content, title, filepath }) => {
       currentMode = mode
@@ -656,6 +970,14 @@
       updateWordCount(); autoSave()
       if (outlineVisible) updateOutline()
     })
+    document.getElementById('editor').addEventListener('mouseup', () => {
+    setTimeout(() => {
+      const sel = window.getSelection()?.toString().trim()
+      if (sel && sel.length > 1 && !sel.includes(' ') && drawerOpen) {
+        ipcRenderer.send('lockin-drawer-lookup', sel)
+      }
+    }, 50)
+  })
   </script>
 </body>
 </html>
