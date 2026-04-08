@@ -182,9 +182,7 @@
     <button class="filter-btn" id="f-project" onclick="setFilter('project')">
       <span class="filter-dot" style="background:#7f77dd"></span>project
     </button>
-    <button class="filter-btn" id="f-longform" onclick="setFilter('longform')">
-      <span class="filter-dot" style="background:#378add"></span>longform
-    </button>
+    
   </div>
 
   <div id="results-meta"></div>
@@ -213,7 +211,7 @@
 
     function setFilter(f) {
       currentFilter = f
-      ;['all','write','plan','project','longform'].forEach(id => {
+      ;['all','write','plan','project',].forEach(id => {
         document.getElementById('f-' + id).classList.toggle('active', id === f)
       })
       renderResults()

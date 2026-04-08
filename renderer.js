@@ -6,8 +6,9 @@ const { ipcRenderer } = require('electron')
 const NOTES_DIR = path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Stave')
 const WRITE_DIR = path.join(NOTES_DIR, 'write')
 const PLAN_DIR  = path.join(NOTES_DIR, 'plan')
+const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
+const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
 const BIBLE_INDEX_PATH = path.join(__dirname, 'bible-index.json')
-
 // ── TAB SYSTEM ──
 // Each tab: { filename, filepath, mode, title, idea, context, tags, planContext, admin, tasks }
 let tabs = []
@@ -646,7 +647,6 @@ function emptyTab(mode) {
 function getDirForMode(mode) {
   if (mode === 'plan') return PLAN_DIR
   if (mode === 'project') return PROJECTS_DIR
-  if (mode === 'longform') return LONGFORM_DIR
   return WRITE_DIR
 }
 
@@ -685,7 +685,7 @@ function currentTags() {
 }
 
 function serializeTab(tab) {
-  if (tab.mode === 'write') {
+  if (tab.mode === 'write' || tab.mode === 'longform') {
     return `# ${tab.title || 'untitled'}\ntype: write\ntags: ${(tab.tags||[]).join(', ')}\n\n## idea\n${tab.idea || ''}\n\n## context\n${tab.context || ''}\n`
   } else {
     let md = `# ${tab.title || 'untitled'}\ntype: plan\ncontext1: ${tab.planContext || ''}\n\n## admin\n${tab.admin || ''}\n\n## tasks\n`
@@ -972,9 +972,6 @@ function init() {
     autoSave()
   })
 }
-
-const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
-const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
 
 function ensureDirs() {
   [NOTES_DIR, WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].forEach(d => {

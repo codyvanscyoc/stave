@@ -138,7 +138,13 @@ function formatNoteLabel(filename, mode) {
 }
 
 function getNotesList(mode) {
-  const dir = mode === 'write' ? WRITE_DIR : PLAN_DIR
+  const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
+  const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
+  let dir
+  if (mode === 'plan') dir = PLAN_DIR
+  else if (mode === 'longform') dir = LONGFORM_DIR
+  else if (mode === 'project') dir = PROJECTS_DIR
+  else dir = WRITE_DIR
   try {
     return fs.readdirSync(dir)
       .filter(f => f.endsWith('.md'))
@@ -314,15 +320,16 @@ ipcMain.on('get-all-notes', (event) => {
   const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
   const writeNotes    = getNotesList('write').map(f =>    ({ filename: f, mode: 'write',    dir: WRITE_DIR    }))
   const planNotes     = getNotesList('plan').map(f =>     ({ filename: f, mode: 'plan',     dir: PLAN_DIR     }))
-  const longformNotes = getNotesList('longform').map(f => ({ filename: f, mode: 'longform', dir: LONGFORM_DIR }))
   const projectNotes  = getNotesList('project').map(f =>  ({ filename: f, mode: 'project',  dir: PROJECTS_DIR }))
-  const all = [...writeNotes, ...planNotes, ...longformNotes, ...projectNotes].map(n => {
+  const all = [...writeNotes, ...planNotes, ...projectNotes].map(n => {
     try {
       const raw = fs.readFileSync(path.join(n.dir, n.filename), 'utf8')
-      const titleLine = raw.split('\n').find(l => l.startsWith('# '))
-      const title = titleLine ? titleLine.slice(2).trim() : n.filename.replace('.md','')
-      const stat = fs.statSync(path.join(n.dir, n.filename))
-      return { filename: n.filename, mode: n.mode, title, raw, mtime: stat.mtime }
+const titleLine = raw.split('\n').find(l => l.startsWith('# '))
+const typeLine = raw.split('\n').find(l => l.startsWith('type: '))
+const title = titleLine ? titleLine.slice(2).trim() : n.filename.replace('.md','')
+const noteMode = typeLine ? typeLine.slice(5).trim() : n.mode
+const stat = fs.statSync(path.join(n.dir, n.filename))
+return { filename: n.filename, mode: noteMode, filepath: path.join(n.dir, n.filename), title, raw, mtime: stat.mtime }
     } catch(e) { return null }
   }).filter(Boolean).sort((a,b) => new Date(b.mtime) - new Date(a.mtime))
   event.reply('all-notes', all)
