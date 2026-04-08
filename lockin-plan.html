@@ -93,12 +93,13 @@
       border-bottom: 0.5px solid var(--border); flex-shrink: 0;
     }
 
-    #braindump-area {
-      flex: 1; font-family: 'JetBrains Mono', monospace;
-      font-size: 13px; font-weight: 300; line-height: 1.9;
-      color: var(--text); background: transparent;
-      border: none; outline: none; resize: none;
-      padding: 14px 16px; -webkit-user-select: text; user-select: text;
+  #braindump-area {
+  flex: 1; font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 300; line-height: 2.1;
+  color: var(--text); background: transparent;
+  border: none; outline: none; resize: none;
+  padding: 14px 16px; -webkit-user-select: text; user-select: text;
+  
     }
 
     #braindump-area::placeholder { color: var(--text3); font-style: italic; }
@@ -664,11 +665,17 @@ let currentDateField = 'deadline' // 'start' or 'deadline'
     }
 
     function saveProject(index) {
-      if (index === undefined) index = currentProjectIndex
-      const p = projects[index]
-      if (!p) return
-      try { fs.writeFileSync(projectFilepath(index), serializeProject(p), 'utf8') } catch(e) {}
-    }
+  if (index === undefined) index = currentProjectIndex
+  const p = projects[index]
+  if (!p) return
+
+  const domBraindump = document.getElementById('braindump-area')?.value || ''
+  if (domBraindump.trim() || !p.braindump) {
+    p.braindump = domBraindump
+  }
+
+  try { fs.writeFileSync(projectFilepath(index), serializeProject(p), 'utf8') } catch(e) {}
+}
 
     function serializeProject(p) {
       let md = `# ${p.name}\ntype: project\ncreated: ${p.created}\n\n`
@@ -794,12 +801,66 @@ let currentDateField = 'deadline' // 'start' or 'deadline'
         label.className = 'project-dot-label'
         label.textContent = p.name || 'project'
 
+        const deleteBtn = document.createElement('div')
+        deleteBtn.style.cssText = `
+          font-size: 9px; color: var(--danger); cursor: pointer;
+          line-height: 1; display: none; font-family: JetBrains Mono, monospace;
+        `
+        deleteBtn.textContent = '×'
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation()
+          if (projects.length === 1) {
+            alert('Cannot delete the only project.')
+            return
+          }
+          showConfirmDelete(i, p.name)
+        }
+
+        wrap.onmouseenter = () => { deleteBtn.style.display = 'block' }
+        wrap.onmouseleave = () => { deleteBtn.style.display = 'none' }
+
         wrap.appendChild(dot)
         wrap.appendChild(label)
+        wrap.appendChild(deleteBtn)
         bar.insertBefore(wrap, addBtn)
       })
     }
+function showConfirmDelete(index, name) {
+  const popup = document.getElementById('confirm-popup')
+  document.getElementById('confirm-message').textContent = `Delete project "${name}"? This cannot be undone.`
+  popup.style.display = 'flex'
 
+  document.getElementById('confirm-cancel').onclick = () => {
+    popup.style.display = 'none'
+  }
+
+  document.getElementById('confirm-ok').onclick = () => {
+    popup.style.display = 'none'
+    deleteProject(index)
+  }
+}
+
+function deleteProject(index) {
+  try {
+    const fp = projectFilepath(index)
+    if (fs.existsSync(fp)) fs.unlinkSync(fp)
+  } catch(e) {}
+
+  projects.splice(index, 1)
+
+  if (currentProjectIndex >= projects.length) {
+    currentProjectIndex = projects.length - 1
+  }
+
+  if (projects.length === 0) {
+    const p = emptyProject('new project')
+    projects.push(p)
+    saveProject(0)
+  }
+
+  renderProjectDots()
+  loadProject(currentProjectIndex)
+}
     function showNewProjectInput() {
       const input = document.getElementById('new-project-input')
       input.style.display = 'block'
@@ -1128,17 +1189,21 @@ deadlineBtn.onclick = () => openDatePopup(pi, deadlineBtn, 'deadline')
     // ── EXTRACT TASKS ──
     const ACTION_WORDS = [
       'need to','needs to','have to','has to','must','should',
-      'call','text','email','send','write','finish','complete',
-      'schedule','book','order','buy','get','pick up','drop off',
-      'follow up','follow-up','reach out','contact','remind',
-      'submit','review','edit','update','fix','check','confirm',
-      'prepare','plan','arrange','organize','set up','demo',
-      'record','print','deliver','return','pay','invoice',
-      'add','promote','announce','post','share','upload','download',
-      'research','draft','pitch','present','assign','delegate',
-      'approve','request','respond','reply','forward','create',
-      'build','design','launch','test','finalize','publish',
-      'message','meet','film','caption','graphic','artwork','budget'
+  'call','text','email','send','write','finish','complete',
+  'schedule','book','order','buy','get','pick up','drop off',
+  'follow up','follow-up','reach out','contact','remind',
+  'submit','review','edit','update','fix','check','confirm',
+  'prepare','plan','arrange','organize','set up','demo',
+  'record','print','deliver','return','pay','invoice',
+  'add','promote','announce','post','share','upload','download',
+  'research','draft','pitch','present','assign','delegate',
+  'approve','request','respond','reply','forward','create',
+  'build','design','launch','test','finalize','publish',
+  'message','meet','interview','follow','connect','invite',
+  'coordinate','manage','lead','train','film','edit video',
+  'export','render','caption','thumbnail','graphic','artwork',
+  'budget','quote','invoice','deposit','payment', 'make', 'take', 
+  'film', 'pay', 'get', 'ask', 'call', 'bring', 'go',
     ]
 
     function scoreSentence(s) {
@@ -1323,9 +1388,10 @@ function showPhasePicker(e, taskIndex) {
   const task = p.tasks[taskIndex]
   if (!task) return
 
+  // add to phase as a copy — don't remove from tasks
   p.phases[phaseIndex].tasks.push({ text: task.text, done: false })
-  p.tasks.splice(taskIndex, 1)
-  autoSave(); renderPhases(); renderExtractedTasks()
+  autoSave()
+  renderPhases()
 
   // flash the target phase
   const blocks = document.querySelectorAll('.phase-block')
@@ -1493,5 +1559,14 @@ function showPhasePicker(e, taskIndex) {
       if (!e.target.closest('#reminder-popup') && !e.target.closest('.ext-task-btn')) closeReminderPopup()
     })
   </script>
+  <div id="confirm-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center;">
+  <div style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:10px;padding:24px;width:280px;">
+    <div id="confirm-message" style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="confirm-cancel" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid var(--accent2);color:var(--accent);background:var(--accentbg);cursor:pointer;outline:none;">cancel</button>
+      <button id="confirm-ok" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid var(--border2);color:var(--text3);background:transparent;cursor:pointer;outline:none;">delete</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

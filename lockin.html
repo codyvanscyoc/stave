@@ -9,100 +9,113 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     .room-stave {
-      --bg:     #1c1c1e;
-      --bg2:    #252528;
-      --text:   #f0e8d8;
-      --text2:  #9a9080;
-      --text3:  #4e4a44;
-      --accent: #c8922a;
-      --accent2:#a07420;
-      --font:   'JetBrains Mono', monospace;
-      --size:   16px;
-      --weight: 300;
-      --lh:     2.2;
+      --bg:     #1c1c1e; --bg2: #252528;
+      --text:   #f0e8d8; --text2: #9a9080; --text3: #4e4a44;
+      --accent: #c8922a; --accent2: #a07420;
+      --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+      --font:   'JetBrains Mono', monospace; --size: 16px; --weight: 300; --lh: 2.2;
     }
 
     .room-manuscript {
-      --bg:     #f5f0e8;
-      --bg2:    #ede8df;
-      --text:   #2c2418;
-      --text2:  #7a6e5e;
-      --text3:  #b0a898;
-      --accent: #8b4513;
-      --accent2:#6b3410;
-      --font:   Georgia, 'Times New Roman', serif;
-      --size:   17px;
-      --weight: 400;
-      --lh:     2.1;
+      --bg:     #f5f0e8; --bg2: #ede8df;
+      --text:   #2c2418; --text2: #7a6e5e; --text3: #b0a898;
+      --accent: #8b4513; --accent2: #6b3410;
+      --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.15);
+      --font:   Georgia, serif; --size: 17px; --weight: 400; --lh: 2.1;
     }
 
     .room-midnight {
-      --bg:     #0d1117;
-      --bg2:    #161b22;
-      --text:   #cdd9e5;
-      --text2:  #768390;
-      --text3:  #444c56;
-      --accent: #4caf7d;
-      --accent2:#2e8a57;
-      --font:   'JetBrains Mono', monospace;
-      --size:   16px;
-      --weight: 300;
-      --lh:     2.2;
+      --bg:     #0d1117; --bg2: #161b22;
+      --text:   #cdd9e5; --text2: #768390; --text3: #444c56;
+      --accent: #4caf7d; --accent2: #2e8a57;
+      --border: rgba(255,255,255,0.05); --border2: rgba(255,255,255,0.1);
+      --font:   'JetBrains Mono', monospace; --size: 16px; --weight: 300; --lh: 2.2;
     }
-.room-parchment {
-  --bg:     #DFD3B4;
-  --bg2:    #f5edd4;
-  --text:   #3d2b1f;
-  --text2:  #8c7055;
-  --text3:  #c4a882;
-  --accent: #8b4513;
-  --accent2:#6b3410;
-  --font:   Georgia, 'Times New Roman', serif;
-  --size:   17px;
-  --weight: 400;
-  --lh:     2.1;
-}
 
-.room-terminal {
-  --bg:     #000000;
-  --bg2:    #0a0a0a;
-  --text:   #00ff41;
-  --text2:  #00cc33;
-  --text3:  #006616;
-  --accent: #00ff41;
-  --accent2:#00cc33;
-  --font:   'JetBrains Mono', monospace;
-  --size:   15px;
-  --weight: 400;
-  --lh:     2.0;
-}
+    .room-parchment {
+      --bg:     #fdf6e3; --bg2: #f5edd4;
+      --text:   #3d2b1f; --text2: #8c7055; --text3: #c4a882;
+      --accent: #8b4513; --accent2: #6b3410;
+      --border: rgba(0,0,0,0.08); --border2: rgba(0,0,0,0.15);
+      --font:   Georgia, serif; --size: 17px; --weight: 400; --lh: 2.1;
+    }
+
+    .room-terminal {
+      --bg:     #000000; --bg2: #0a0a0a;
+      --text:   #00ff41; --text2: #00cc33; --text3: #006616;
+      --accent: #00ff41; --accent2: #00cc33;
+      --border: rgba(0,255,65,0.1); --border2: rgba(0,255,65,0.2);
+      --font:   'JetBrains Mono', monospace; --size: 15px; --weight: 400; --lh: 2.0;
+    }
+
     html, body {
       width: 100%; height: 100vh; overflow: hidden;
       background: var(--bg); color: var(--text);
-      font-family: var(--font);
-      -webkit-font-smoothing: antialiased;
+      font-family: var(--font); -webkit-font-smoothing: antialiased;
       transition: background 0.4s ease, color 0.4s ease;
+      display: flex; flex-direction: column;
     }
 
+    /* ── TOP BAR ── */
+    #top-bar {
+      height: 44px; display: flex; align-items: center;
+      padding: 0 24px; -webkit-app-region: drag;
+      border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0; background: var(--bg);
+    }
+
+    #stave-mark {
+      font-size: 13px; font-weight: 500; color: var(--accent);
+      opacity: 0.35; letter-spacing: 0.1em;
+      -webkit-app-region: no-drag;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    #top-drag { flex: 1; }
+
+    #exit-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 4px 12px; border-radius: 5px;
+      border: 0.5px solid var(--text3); color: var(--text3);
+      background: transparent; cursor: pointer;
+      transition: all 0.15s; -webkit-app-region: no-drag; outline: none;
+    }
+
+    #exit-btn:hover { color: var(--text); border-color: var(--text2); }
+
+    /* ── FORMAT TOOLBAR ── */
+    #fmt-toolbar {
+      display: flex; align-items: center; gap: 4px;
+      padding: 5px 24px; border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0; background: var(--bg);
+    }
+
+    .fmt-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      padding: 2px 8px; border-radius: 4px;
+      border: 0.5px solid var(--border2); color: var(--text3);
+      background: transparent; cursor: pointer; outline: none;
+      transition: all 0.12s; line-height: 1.5;
+    }
+
+    .fmt-btn:hover { color: var(--text); border-color: var(--border2); }
+    .fmt-sep { width: 0.5px; height: 14px; background: var(--border2); margin: 0 3px; flex-shrink: 0; }
+
+    /* ── MAIN LAYOUT ── */
     #layout {
-      display: flex;
-      width: 100%; height: 100vh;
-      position: relative;
+      display: flex; flex: 1; min-height: 0;
     }
 
     /* ── OUTLINE SIDEBAR ── */
     #outline-sidebar {
       width: 200px; flex-shrink: 0;
-      padding: 60px 16px 60px 24px;
-      overflow-y: auto;
-      opacity: 0; transition: opacity 0.3s ease;
-      pointer-events: none;
+      padding: 30px 16px 60px 24px;
+      overflow-y: auto; opacity: 0;
+      transition: opacity 0.3s ease; pointer-events: none;
+      border-right: 0.5px solid var(--border);
     }
 
-    #outline-sidebar.visible {
-      opacity: 1; pointer-events: all;
-    }
-
+    #outline-sidebar.visible { opacity: 1; pointer-events: all; }
     #outline-sidebar::-webkit-scrollbar { width: 2px; }
     #outline-sidebar::-webkit-scrollbar-thumb { background: var(--text3); border-radius: 2px; }
 
@@ -117,51 +130,39 @@
       cursor: pointer; padding: 2px 0;
       font-family: 'JetBrains Mono', monospace;
       transition: color 0.15s; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis;
-      user-select: none;
+      overflow: hidden; text-overflow: ellipsis; user-select: none;
     }
 
     .outline-item:hover { color: var(--accent); }
     .outline-item.section { color: var(--accent); font-weight: 500; font-size: 10px; letter-spacing: 0.06em; }
     .outline-item.sub { padding-left: 10px; font-size: 10px; }
-
-    .outline-divider {
-      height: 0.5px; background: var(--text3); opacity: 0.3;
-      margin: 6px 0; width: 60%;
-    }
+    .outline-divider { height: 0.5px; background: var(--text3); opacity: 0.3; margin: 6px 0; width: 60%; }
 
     /* ── WRITING COLUMN ── */
     #write-column {
       flex: 1; display: flex; flex-direction: column;
-      align-items: center;
-      padding: 80px 40px 80px;
-      overflow-y: auto; min-width: 0;
+      align-items: center; overflow-y: auto; min-width: 0;
+      padding: 40px 40px 80px;
     }
 
     #write-column::-webkit-scrollbar { width: 3px; }
     #write-column::-webkit-scrollbar-thumb { background: var(--text3); opacity: 0.3; border-radius: 2px; }
 
     #doc-title {
-      font-family: var(--font);
-      font-size: 13px; font-weight: 500;
+      font-family: var(--font); font-size: 13px; font-weight: 500;
       color: var(--text3); letter-spacing: 0.06em;
-      margin-bottom: 40px; text-align: center;
+      margin-bottom: 30px; text-align: center;
       width: 100%; max-width: 660px;
-      outline: none; background: transparent; border: none;
-      -webkit-user-select: text; user-select: text;
       text-transform: uppercase;
     }
 
     #editor {
-      font-family: var(--font);
-      font-size: var(--size);
-      font-weight: var(--weight);
-      line-height: var(--lh);
-      color: var(--text);
-      background: transparent;
+      font-family: var(--font); font-size: var(--size);
+      font-weight: var(--weight); line-height: var(--lh);
+      color: var(--text); background: transparent;
       border: none; outline: none; resize: none;
       width: 100%; max-width: 660px;
-      min-height: calc(100vh - 280px);
+      min-height: calc(100vh - 300px);
       -webkit-user-select: text; user-select: text;
       caret-color: var(--accent);
     }
@@ -187,19 +188,20 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 10px; color: var(--text3);
       text-align: right; letter-spacing: 0.1em;
-      text-transform: uppercase;
-      margin-bottom: 8px; opacity: 0;
-      transition: opacity 0.3s;
+      text-transform: uppercase; margin-bottom: 8px;
+      opacity: 0; transition: opacity 0.3s;
     }
 
     #width-switcher {
-      display: flex; gap: 6px; justify-content: flex-end;
-      margin-bottom: 12px;
+      display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 12px;
+    }
+
+    #template-switcher {
+      display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 10px;
     }
 
     #room-switcher {
-      display: flex; gap: 8px; justify-content: flex-end;
-      margin-bottom: 20px;
+      display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 20px;
     }
 
     .room-dot {
@@ -211,11 +213,15 @@
     .room-dot:hover { opacity: 0.9; transform: scale(1.2); }
     .room-dot.active { opacity: 1; border-color: var(--text2); transform: scale(1.1); }
 
-   #dot-stave       { background: #c8922a; }
-   #dot-manuscript  { background: #8b4513; }
-   #dot-midnight    { background: #4caf7d; }
-   #dot-parchment   { background: #d4a96a; }
-#dot-terminal    { background: #00ff41; }
+    #dot-stave      { background: #c8922a; }
+    #dot-manuscript { background: #8b4513; }
+    #dot-midnight   { background: #4caf7d; }
+    #dot-parchment  { background: #d4a96a; }
+    #dot-terminal   { background: #00ff41; }
+    #dot-blank      { background: #4e4a44; }
+    #dot-sermon     { background: #378add; }
+    #dot-essay      { background: #7f77dd; }
+    #dot-study      { background: #4caf7d; }
 
     #controls {
       display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
@@ -231,34 +237,6 @@
 
     .ctrl-btn:hover { color: var(--text); border-color: var(--text2); }
     .ctrl-btn.active { color: var(--accent); border-color: var(--accent); }
-
-    /* ── TOP BAR ── */
-    #top-bar {
-      position: fixed; top: 0; left: 0; right: 0;
-      height: 44px; display: flex; align-items: center;
-      padding: 0 24px; -webkit-app-region: drag; z-index: 100;
-    }
-
-    #stave-mark {
-      font-size: 13px; font-weight: 500;
-      color: var(--accent); opacity: 0.12;
-      letter-spacing: 0.1em;
-      -webkit-app-region: no-drag;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    #top-drag { flex: 1; -webkit-app-region: drag; }
-
-    #exit-btn {
-      font-family: 'JetBrains Mono', monospace; font-size: 10px;
-      padding: 4px 12px; border-radius: 5px;
-      border: 0.5px solid var(--text3); color: var(--text3);
-      background: transparent; cursor: pointer;
-      transition: all 0.15s; letter-spacing: 0.06em;
-      -webkit-app-region: no-drag; outline: none;
-    }
-
-    #exit-btn:hover { color: var(--text); border-color: var(--text2); }
   </style>
 </head>
 <body class="room-stave">
@@ -267,6 +245,16 @@
     <span id="stave-mark">S†</span>
     <div id="top-drag"></div>
     <button id="exit-btn" onclick="exitLockIn()">exit lock in</button>
+  </div>
+
+  <div id="fmt-toolbar">
+    <button class="fmt-btn" onclick="fmtToggle('**')" title="bold (⌘B)"><strong>B</strong></button>
+    <button class="fmt-btn" onclick="fmtToggle('_')" title="italic (⌘I)"><em>I</em></button>
+    <div class="fmt-sep"></div>
+    <button class="fmt-btn" onclick="fmtQuote()" title="blockquote">"</button>
+    <button class="fmt-btn" onclick="fmtBullet()" title="bullet">•</button>
+    <div class="fmt-sep"></div>
+    <button class="fmt-btn" onclick="fmtSection()" title="section break">—</button>
   </div>
 
   <div id="layout">
@@ -290,27 +278,49 @@
         <button class="ctrl-btn active" id="w-medium" onclick="setWidth('medium')">medium</button>
         <button class="ctrl-btn" id="w-wide" onclick="setWidth('wide')">wide</button>
       </div>
-      
-<div id="template-switcher" style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px;">
-  <div class="room-dot" id="dot-blank"   onclick="applyTemplate('blank')"   title="blank"       style="background:#4e4a44;"></div>
-  <div class="room-dot" id="dot-sermon"  onclick="applyTemplate('sermon')"  title="sermon"      style="background:#378add;"></div>
-  <div class="room-dot" id="dot-essay"   onclick="applyTemplate('essay')"   title="essay"       style="background:#7f77dd;"></div>
-  <div class="room-dot" id="dot-study"   onclick="applyTemplate('study')"   title="bible study" style="background:#4caf7d;"></div>
-</div>
+
+      <div id="template-switcher">
+        <div class="room-dot" id="dot-blank"  onclick="applyTemplate('blank')"  title="blank"       style="background:#4e4a44;"></div>
+        <div class="room-dot" id="dot-sermon" onclick="applyTemplate('sermon')" title="sermon"      style="background:#378add;"></div>
+        <div class="room-dot" id="dot-essay"  onclick="applyTemplate('essay')"  title="essay"       style="background:#7f77dd;"></div>
+        <div class="room-dot" id="dot-study"  onclick="applyTemplate('study')"  title="bible study" style="background:#4caf7d;"></div>
+      </div>
 
       <div id="room-switcher">
-  <div class="room-dot active" id="dot-stave"       onclick="setRoom('stave')"       title="stave"></div>
-  <div class="room-dot"        id="dot-manuscript"  onclick="setRoom('manuscript')"  title="manuscript"></div>
-  <div class="room-dot"        id="dot-midnight"    onclick="setRoom('midnight')"    title="midnight"></div>
-  <div class="room-dot"        id="dot-parchment"   onclick="setRoom('parchment')"   title="parchment"></div>
-  <div class="room-dot"        id="dot-terminal"    onclick="setRoom('terminal')"    title="terminal"></div>
-</div>
+        <div class="room-dot active" id="dot-stave"      onclick="setRoom('stave')"      title="stave"></div>
+        <div class="room-dot"        id="dot-manuscript" onclick="setRoom('manuscript')"  title="manuscript"></div>
+        <div class="room-dot"        id="dot-midnight"   onclick="setRoom('midnight')"    title="midnight"></div>
+        <div class="room-dot"        id="dot-parchment"  onclick="setRoom('parchment')"   title="parchment"></div>
+        <div class="room-dot"        id="dot-terminal"   onclick="setRoom('terminal')"    title="terminal"></div>
+      </div>
 
       <div id="controls">
         <button class="ctrl-btn" id="outline-btn" onclick="toggleOutline()">outline</button>
       </div>
     </div>
 
+  </div>
+
+  <!-- TEMPLATE PICKER -->
+  <div id="template-picker" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
+    <div style="background:var(--bg3,#2e2e32);border:0.5px solid rgba(255,255,255,0.13);border-radius:10px;padding:24px;width:300px;">
+      <div style="font-size:9px;font-weight:500;color:#4e4a44;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:16px;">choose template</div>
+      <div id="template-options" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="margin-top:12px;text-align:right;">
+        <button onclick="skipTemplate()" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:4px 10px;border-radius:5px;border:0.5px solid #4e4a44;color:#4e4a44;background:transparent;cursor:pointer;outline:none;">skip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRM POPUP -->
+  <div id="confirm-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center;">
+    <div style="background:#2e2e32;border:0.5px solid rgba(255,255,255,0.13);border-radius:10px;padding:24px;width:280px;">
+      <div id="confirm-message" style="font-size:12px;color:#9a9080;margin-bottom:16px;line-height:1.6;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="confirm-cancel" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid #a07420;color:#c8922a;background:rgba(200,146,42,0.1);cursor:pointer;outline:none;">cancel</button>
+        <button id="confirm-ok" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid rgba(255,255,255,0.13);color:#4e4a44;background:transparent;cursor:pointer;outline:none;">clear</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -322,125 +332,172 @@
     let currentFilepath = null
     let saveTimer = null
     let currentMode = 'write'
+    let fmtModes = {}
 
     ipcRenderer.on('init-lockin', (event, { mode, content, title, filepath }) => {
-  currentMode = mode
-  currentFilepath = filepath
-  document.getElementById('doc-title').textContent = title || 'untitled'
-  document.getElementById('editor').value = content || ''
-  document.getElementById('editor').focus()
-  updateWordCount()
-  updateOutline()
-  // show template picker only for longform tabs with no content
-  if (mode === 'longform' && !content) showTemplatePicker()
-})
-const TEMPLATES = {
-  blank: { title: '', content: '' },
-  sermon: {
-    title: 'New Sermon',
-    content: '# Series\n\n\n# Scripture\n\n\n# Big Idea\nOne sentence that captures everything.\n\n\n# Point 1\n\n\n# Point 2\n\n\n# Point 3\n\n\n# Illustration\n\n\n# Application\n\n\n# Call to Action'
-  },
-  essay: {
-    title: 'New Essay',
-    content: '# Introduction\n\n\n# Main Argument\n\n\n# Supporting Point 1\n\n\n# Supporting Point 2\n\n\n# Supporting Point 3\n\n\n# Conclusion'
-  },
-  study: {
-    title: 'New Bible Study',
-    content: '# Passage\n\n\n# Observation\nWhat does it say?\n\n\n# Interpretation\nWhat does it mean?\n\n\n# Application\nWhat do I do with it?\n\n\n# Prayer'
-  }
-}
+      currentMode = mode
+      currentFilepath = filepath
+      document.getElementById('doc-title').textContent = title || 'untitled'
+      document.getElementById('editor').value = content || ''
+      document.getElementById('editor').focus()
+      updateWordCount()
+      updateOutline()
+      if (mode === 'longform' && !content) showTemplatePicker()
+    })
 
-function showTemplatePicker() {
-  const picker = document.getElementById('template-picker')
-  const options = document.getElementById('template-options')
-  options.innerHTML = ''
-  picker.style.display = 'flex'
+    // ── FORMATTING ──
+    function fmtToggle(marker) {
+      const area = document.getElementById('editor')
+      const s = area.selectionStart, e = area.selectionEnd
 
-  Object.entries(TEMPLATES).forEach(([key, tmpl]) => {
-    const btn = document.createElement('button')
-    btn.style.cssText = `
-      font-family: JetBrains Mono, monospace; font-size: 11px;
-      padding: 10px 14px; border-radius: 6px;
-      border: 0.5px solid var(--border2); color: var(--text2);
-      background: var(--bg2); cursor: pointer; text-align: left;
-      transition: all 0.12s; outline: none; width: 100%;
-    `
-    const labels = { blank: 'blank', sermon: 'sermon', essay: 'essay', study: 'bible study' }
-    const descs  = { blank: 'empty — start fresh', sermon: 'scripture · points · application', essay: 'intro · argument · conclusion', study: 'observe · interpret · apply · pray' }
-    btn.onmouseenter = () => { btn.style.borderColor = 'var(--accent2)'; btn.style.color = 'var(--text)' }
-    btn.onmouseleave = () => { btn.style.borderColor = 'var(--border2)'; btn.style.color = 'var(--text2)' }
-    btn.innerHTML = `<div style="font-weight:500;color:var(--text);margin-bottom:3px;">${labels[key]}</div><div style="font-size:9px;color:var(--text3)">${descs[key]}</div>`
-    btn.onclick = () => {
-      picker.style.display = 'none'
-      applyTemplate(key)
+      if (s !== e) {
+        const selected = area.value.slice(s, e)
+        const replacement = marker + selected + marker
+        area.value = area.value.slice(0,s) + replacement + area.value.slice(e)
+        area.selectionStart = s + marker.length
+        area.selectionEnd = s + marker.length + selected.length
+        area.focus(); autoSave(); return
+      }
+
+      if (fmtModes[marker]) {
+        const pos = area.selectionStart
+        area.value = area.value.slice(0, pos) + marker + area.value.slice(pos)
+        area.selectionStart = area.selectionEnd = pos + marker.length
+        fmtModes[marker] = false
+      } else {
+        const pos = area.selectionStart
+        area.value = area.value.slice(0, pos) + marker + area.value.slice(pos)
+        area.selectionStart = area.selectionEnd = pos + marker.length
+        fmtModes[marker] = true
+      }
+      area.focus(); autoSave()
     }
-    options.appendChild(btn)
-  })
-}
 
-function skipTemplate() {
-  document.getElementById('template-picker').style.display = 'none'
-  document.getElementById('editor').focus()
-}
-function showConfirm(message, onConfirm) {
-  const popup = document.getElementById('confirm-popup')
-  document.getElementById('confirm-message').textContent = message
-  popup.style.display = 'flex'
+    function fmtQuote() {
+      const area = document.getElementById('editor')
+      const pos = area.selectionStart
+      const text = area.value
+      const lineStart = text.lastIndexOf('\n', pos-1) + 1
+      const lineEnd = text.indexOf('\n', pos)
+      const end = lineEnd === -1 ? text.length : lineEnd
+      const line = text.slice(lineStart, end)
+      const newLine = line.startsWith('> ') ? line.slice(2) : '> ' + line
+      area.value = text.slice(0, lineStart) + newLine + text.slice(end)
+      area.selectionStart = area.selectionEnd = lineStart + newLine.length
+      area.focus(); autoSave()
+    }
 
-  document.getElementById('confirm-cancel').onclick = () => {
-    popup.style.display = 'none'
-  }
+    function fmtBullet() {
+      const area = document.getElementById('editor')
+      const pos = area.selectionStart
+      const text = area.value
+      const lineStart = text.lastIndexOf('\n', pos-1) + 1
+      const lineEnd = text.indexOf('\n', pos)
+      const end = lineEnd === -1 ? text.length : lineEnd
+      const line = text.slice(lineStart, end)
+      const newLine = '• ' + line.replace(/^[•\-]\s*/,'')
+      area.value = text.slice(0, lineStart) + newLine + text.slice(end)
+      area.selectionStart = area.selectionEnd = lineStart + newLine.length
+      area.focus(); autoSave()
+    }
 
-  document.getElementById('confirm-ok').onclick = () => {
-    popup.style.display = 'none'
-    onConfirm()
-  }
-}
+    function fmtSection() {
+      const area = document.getElementById('editor')
+      const pos = area.selectionStart
+      const insert = '\n---\n'
+      area.value = area.value.slice(0, pos) + insert + area.value.slice(pos)
+      area.selectionStart = area.selectionEnd = pos + insert.length
+      area.focus(); autoSave()
+    }
 
-function applyTemplate(key) {
-  const tmpl = TEMPLATES[key]
-  if (!tmpl) return
-  const editor = document.getElementById('editor')
+    // ── TEMPLATES ──
+    const TEMPLATES = {
+      blank:  { title: '', content: '' },
+      sermon: {
+        title: 'New Sermon',
+        content: '# Series\n\n\n# Scripture\n\n\n# Big Idea\nOne sentence that captures everything.\n\n\n# Point 1\n\n\n# Point 2\n\n\n# Point 3\n\n\n# Illustration\n\n\n# Application\n\n\n# Call to Action'
+      },
+      essay: {
+        title: 'New Essay',
+        content: '# Introduction\n\n\n# Main Argument\n\n\n# Supporting Point 1\n\n\n# Supporting Point 2\n\n\n# Supporting Point 3\n\n\n# Conclusion'
+      },
+      study: {
+        title: 'New Bible Study',
+        content: '# Passage\n\n\n# Observation\nWhat does it say?\n\n\n# Interpretation\nWhat does it mean?\n\n\n# Application\nWhat do I do with it?\n\n\n# Prayer'
+      }
+    }
 
-  // only apply if editor is empty or confirm if not
-  if (editor.value.trim() && key !== 'blank') {
-    if (!confirm('Replace current content with this template?')) return
-  }
+    function showTemplatePicker() {
+      const picker = document.getElementById('template-picker')
+      const options = document.getElementById('template-options')
+      options.innerHTML = ''
+      picker.style.display = 'flex'
 
-  if (key === 'blank') {
-    if (editor.value.trim()) {
-      showConfirm('Clear all content? This cannot be undone.', () => {
+      const labels = { blank: 'blank', sermon: 'sermon', essay: 'essay', study: 'bible study' }
+      const descs  = { blank: 'empty — start fresh', sermon: 'scripture · points · application', essay: 'intro · argument · conclusion', study: 'observe · interpret · apply · pray' }
+
+      Object.keys(TEMPLATES).forEach(key => {
+        const btn = document.createElement('button')
+        btn.style.cssText = 'font-family:JetBrains Mono,monospace;font-size:11px;padding:10px 14px;border-radius:6px;border:0.5px solid rgba(255,255,255,0.13);color:#9a9080;background:#252528;cursor:pointer;text-align:left;transition:all 0.12s;outline:none;width:100%;'
+        btn.onmouseenter = () => { btn.style.borderColor = '#a07420'; btn.style.color = '#f0e8d8' }
+        btn.onmouseleave = () => { btn.style.borderColor = 'rgba(255,255,255,0.13)'; btn.style.color = '#9a9080' }
+        btn.innerHTML = `<div style="font-weight:500;color:#f0e8d8;margin-bottom:3px;">${labels[key]}</div><div style="font-size:9px;color:#4e4a44">${descs[key]}</div>`
+        btn.onclick = () => { picker.style.display = 'none'; applyTemplate(key) }
+        options.appendChild(btn)
+      })
+    }
+
+    function skipTemplate() {
+      document.getElementById('template-picker').style.display = 'none'
+      document.getElementById('editor').focus()
+    }
+
+    function showConfirm(message, onConfirm) {
+      const popup = document.getElementById('confirm-popup')
+      document.getElementById('confirm-message').textContent = message
+      popup.style.display = 'flex'
+      document.getElementById('confirm-cancel').onclick = () => { popup.style.display = 'none' }
+      document.getElementById('confirm-ok').onclick = () => { popup.style.display = 'none'; onConfirm() }
+    }
+
+    function applyTemplate(key) {
+      const tmpl = TEMPLATES[key]
+      if (!tmpl) return
+      const editor = document.getElementById('editor')
+
+      if (key === 'blank') {
+        if (editor.value.trim()) {
+          showConfirm('Clear all content? This cannot be undone.', () => {
+            editor.value = ''
+            autoSave(); updateWordCount()
+            if (outlineVisible) updateOutline()
+          })
+          return
+        }
         editor.value = ''
-        autoSave()
-        updateWordCount()
-        if (outlineVisible) updateOutline()
-      })
-      return
-    }
-    editor.value = ''
-  } else if (tmpl.content) {
-    if (editor.value.trim()) {
-      showConfirm('Replace current content with this template?', () => {
+      } else if (tmpl.content) {
+        if (editor.value.trim()) {
+          showConfirm('Replace current content with this template?', () => {
+            editor.value = tmpl.content
+            autoSave(); updateWordCount()
+            if (outlineVisible) updateOutline()
+          })
+          return
+        }
         editor.value = tmpl.content
-        autoSave()
-        updateWordCount()
-        if (outlineVisible) updateOutline()
-      })
-      return
+      }
+
+      autoSave(); updateWordCount()
+      if (outlineVisible) updateOutline()
+
+      document.querySelectorAll('#template-switcher .room-dot').forEach(d => d.classList.remove('active'))
+      const dot = document.getElementById('dot-' + key)
+      if (dot) dot.classList.add('active')
+
+      editor.focus()
     }
-    editor.value = tmpl.content
-  }
-  autoSave()
-  updateWordCount()
-  if (outlineVisible) updateOutline()
 
-  editor.focus()
-
-  // update active dot
-  document.querySelectorAll('#template-switcher .room-dot').forEach(d => d.classList.remove('active'))
-  const dot = document.getElementById('dot-' + key)
-  if (dot) dot.classList.add('active')
-}
+    // ── WIDTH ──
     function setWidth(size) {
       const widths = { narrow: '520px', medium: '660px', wide: '860px' }
       const w = widths[size]
@@ -452,19 +509,19 @@ function applyTemplate(key) {
       document.getElementById('w-' + size).classList.add('active')
     }
 
-   function setRoom(room) {
-  currentRoom = room
-  document.body.className = 'room-' + room
-  document.querySelectorAll('.room-dot').forEach(d => d.classList.remove('active'))
-  document.getElementById('dot-' + room).classList.add('active')
-  const flash = document.getElementById('room-flash')
-  flash.textContent = room
-  flash.style.opacity = '1'
-  setTimeout(() => { flash.style.opacity = '0' }, 1200)
-}
+    // ── ROOM ──
+    function setRoom(room) {
+      currentRoom = room
+      document.body.className = 'room-' + room
+      document.querySelectorAll('.room-dot').forEach(d => d.classList.remove('active'))
+      document.getElementById('dot-' + room).classList.add('active')
+      const flash = document.getElementById('room-flash')
+      flash.textContent = room
+      flash.style.opacity = '1'
+      setTimeout(() => { flash.style.opacity = '0' }, 1200)
+    }
 
-// rooms added: parchment + terminal
-
+    // ── OUTLINE ──
     function toggleOutline() {
       outlineVisible = !outlineVisible
       document.getElementById('outline-sidebar').classList.toggle('visible', outlineVisible)
@@ -478,11 +535,7 @@ function applyTemplate(key) {
       const lines = text.split('\n')
       const container = document.getElementById('outline-items')
       container.innerHTML = ''
-
-      const SECTION_MARKERS = ['verse','chorus','bridge','pre-chorus','prechorus',
-        'tag','intro','outro','hook','refrain','interlude','breakdown',
-        'section','part','chapter','scene']
-
+      const SECTION_MARKERS = ['verse','chorus','bridge','pre-chorus','tag','intro','outro','hook','section','part','chapter','scene','point','application','scripture','illustration']
       let hasItems = false
 
       lines.forEach((line, i) => {
@@ -550,6 +603,7 @@ function applyTemplate(key) {
       editor.scrollTop = lineIndex * lineHeight - 200
     }
 
+    // ── WORD COUNT ──
     function updateWordCount() {
       const text = document.getElementById('editor').value
       const words = text.trim() ? text.trim().split(/\s+/).length : 0
@@ -557,6 +611,7 @@ function applyTemplate(key) {
       document.getElementById('word-count').textContent = `${words} words · ${lines} lines`
     }
 
+    // ── AUTOSAVE ──
     function autoSave() {
       clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {
@@ -566,13 +621,13 @@ function applyTemplate(key) {
           const content = document.getElementById('editor').value
           let updated
 
-          if (currentMode === 'write') {
-            updated = raw.replace(/(## idea\n)([\s\S]*?)((?:\n## |\n# |$))/,
+          if (currentMode === 'write' || currentMode === 'longform') {
+            updated = raw.replace(/(## idea\n)([\s\S]*?)(\n## |\n# |$)/,
               (match, before, old, after) => before + content + '\n' + after)
             if (!updated.includes(content))
               updated = raw.replace(/(## idea\n)([\s\S]*)/, '$1' + content + '\n')
           } else {
-            updated = raw.replace(/(## admin\n)([\s\S]*?)((?:\n## |\n# |$))/,
+            updated = raw.replace(/(## admin\n)([\s\S]*?)(\n## |\n# |$)/,
               (match, before, old, after) => before + content + '\n' + after)
             if (!updated.includes(content))
               updated = raw.replace(/(## admin\n)([\s\S]*)/, '$1' + content + '\n')
@@ -583,39 +638,24 @@ function applyTemplate(key) {
       }, 800)
     }
 
+    // ── EXIT ──
     function exitLockIn() {
       const content = document.getElementById('editor').value
       ipcRenderer.send('close-lockin', content)
     }
 
+    // ── KEYBOARD ──
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') exitLockIn()
       if (e.key === 's' && e.metaKey) { e.preventDefault(); autoSave() }
+      if (e.key === 'b' && e.metaKey) { e.preventDefault(); fmtToggle('**') }
+      if (e.key === 'i' && e.metaKey) { e.preventDefault(); fmtToggle('_') }
     })
 
     document.getElementById('editor').addEventListener('input', () => {
-      updateWordCount()
-      autoSave()
+      updateWordCount(); autoSave()
       if (outlineVisible) updateOutline()
     })
   </script>
-  <div id="template-picker" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
-  <div style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:10px;padding:24px;width:300px;">
-    <div style="font-size:9px;font-weight:500;color:var(--text3);letter-spacing:0.14em;text-transform:uppercase;margin-bottom:16px;">choose template</div>
-    <div id="template-options" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <div style="margin-top:12px;text-align:right;">
-      <button onclick="skipTemplate()" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:4px 10px;border-radius:5px;border:0.5px solid var(--text3);color:var(--text3);background:transparent;cursor:pointer;outline:none;">skip</button>
-    </div>
-  </div>
-</div>
-<div id="confirm-popup" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center;">
-  <div style="background:var(--bg3);border:0.5px solid var(--border2);border-radius:10px;padding:24px;width:280px;">
-    <div id="confirm-message" style="font-size:12px;color:var(--text2);margin-bottom:16px;line-height:1.6;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button id="confirm-cancel" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid var(--accent2);color:var(--accent);background:var(--accentbg);cursor:pointer;outline:none;">cancel</button>
-      <button id="confirm-ok" style="font-family:JetBrains Mono,monospace;font-size:10px;padding:5px 14px;border-radius:5px;border:0.5px solid var(--border2);color:var(--text3);background:transparent;cursor:pointer;outline:none;">clear</button>
-    </div>
-  </div>
-</div>
 </body>
 </html>

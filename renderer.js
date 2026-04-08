@@ -1168,7 +1168,8 @@ const ACTION_WORDS = [
   'message','meet','interview','follow','connect','invite',
   'coordinate','manage','lead','train','film','edit video',
   'export','render','caption','thumbnail','graphic','artwork',
-  'budget','quote','invoice','deposit','payment'
+  'budget','quote','invoice','deposit','payment', 'make', 'take', 
+  'film', 'pay','get', 'ask', 'call', 'bring', 'go',
 ]
 
 const TIME_WORDS = [
