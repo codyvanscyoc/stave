@@ -68,6 +68,7 @@
     }
 
     .filter-btn.active { color: var(--accent); border-bottom: 1.5px solid var(--accent); }
+    .filter-btn#filter-phases.active { color: var(--success); border-bottom-color: var(--success); }
     .filter-btn:hover:not(.active) { color: var(--text2); }
 
     #results-meta {
@@ -106,6 +107,12 @@
 
     .reminder-time.past { color: var(--danger); background: rgba(192,57,43,0.1); border-color: var(--danger); }
 
+    .reminder-phase-tag {
+      font-size: 9px; padding: 2px 6px; border-radius: 8px;
+      background: rgba(76,175,125,0.1); border: 0.5px solid var(--success);
+      color: var(--success); letter-spacing: 0.05em;
+    }
+
     .reminder-note {
       font-size: 10px; color: var(--text3); cursor: pointer;
     }
@@ -126,8 +133,9 @@
   </div>
 
   <div id="filter-bar">
-    <button class="filter-btn active" id="filter-all" onclick="setFilter('all')">all</button>
-    <button class="filter-btn" id="filter-upcoming" onclick="setFilter('upcoming')">upcoming</button>
+    <button class="filter-btn active" id="filter-upcoming" onclick="setFilter('upcoming')">upcoming</button>
+    <button class="filter-btn" id="filter-tasks" onclick="setFilter('tasks')">tasks</button>
+    <button class="filter-btn" id="filter-phases" onclick="setFilter('phases')">phases</button>
     <button class="filter-btn" id="filter-past" onclick="setFilter('past')">past</button>
   </div>
 
@@ -141,13 +149,13 @@
     const { ipcRenderer } = require('electron')
 
     let allReminders = []
-    let currentFilter = 'all'
+    let currentFilter = 'upcoming'
 
     function closeReminders() { ipcRenderer.send('close-reminders') }
 
     function setFilter(f) {
       currentFilter = f
-      ;['all','upcoming','past'].forEach(id => {
+      ;['upcoming','past','tasks','phases'].forEach(id => {
         document.getElementById('filter-' + id).classList.toggle('active', id === f)
       })
       renderReminders()
@@ -163,9 +171,11 @@
       const meta = document.getElementById('results-meta')
       const now = new Date()
 
-      let filtered = allReminders
+      let filtered = allReminders.filter(r => !r.isPast)
       if (currentFilter === 'upcoming') filtered = allReminders.filter(r => !r.isPast)
-      if (currentFilter === 'past') filtered = allReminders.filter(r => r.isPast)
+      if (currentFilter === 'past')     filtered = allReminders.filter(r => r.isPast)
+      if (currentFilter === 'tasks')    filtered = allReminders.filter(r => !r.isPhaseDeadline && !r.isPast)
+      if (currentFilter === 'phases')   filtered = allReminders.filter(r => r.isPhaseDeadline && !r.isPast)
 
       list.innerHTML = ''
 
@@ -194,7 +204,9 @@
 
         const time = document.createElement('span')
         time.className = 'reminder-time' + (r.isPast ? ' past' : '')
-        time.textContent = formatDateTime(r.isoString)
+        time.textContent = r.isPhaseDeadline
+          ? new Date(r.isoString).toLocaleDateString([], { month: '2-digit', day: '2-digit', year: '2-digit' })
+          : formatDateTime(r.isoString)
 
         const note = document.createElement('span')
         note.className = 'reminder-note'
@@ -204,6 +216,12 @@
         }
 
         metaEl.appendChild(time)
+        if (r.isPhaseDeadline) {
+          const tag = document.createElement('span')
+          tag.className = 'reminder-phase-tag'
+          tag.textContent = 'phase'
+          metaEl.appendChild(tag)
+        }
         metaEl.appendChild(note)
         row.appendChild(task)
         row.appendChild(metaEl)

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, screen, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, Tray, Menu, MenuItem, globalShortcut, nativeImage, screen, ipcMain, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -58,6 +58,7 @@ function createWindow() {
   })
 
   win.loadFile('index.html')
+  win.webContents.session.setSpellCheckerLanguages(['en-US'])
   win.on('blur', () => { if (winMode === 'hide') win.hide() })
   win.on('resize', () => {
     const [w, h] = win.getSize()
@@ -211,7 +212,7 @@ function openSearch() {
 }
 let lockInWin = null
 
-function openLockIn(mode, content, title) {
+function openLockIn(mode, content, title, filepath, recordings) {
   if (lockInWin && !lockInWin.isDestroyed()) {
     lockInWin.focus()
     return
@@ -230,7 +231,7 @@ function openLockIn(mode, content, title) {
   lockInWin.once('ready-to-show', () => {
     lockInWin.show()
     lockInWin.focus()
-    lockInWin.webContents.send('init-lockin', { mode, content, title })
+    lockInWin.webContents.send('init-lockin', { mode, content, title, filepath, recordings: recordings || [] })
   })
   lockInWin.on('closed', () => { lockInWin = null })
 }
@@ -253,7 +254,7 @@ function openReminders() {
 // ── IPC ──
 ipcMain.on('open-search', () => openSearch())
 ipcMain.on('open-reminders', () => openReminders())
-ipcMain.on('open-lockin', (event, data) => openLockIn(data.mode, data.content, data.title))
+ipcMain.on('open-lockin', (event, data) => openLockIn(data.mode, data.content, data.title, data.filepath, data.recordings))
 let lockInPlanWin = null
 
 ipcMain.on('open-lockin-plan', (event, data) => {
@@ -334,6 +335,9 @@ ipcMain.on('lockin-drawer-results', (event, data) => {
     lockInWin.webContents.send('drawer-results', data)
   }
 })
+ipcMain.on('lockin-recordings-update', (event, recordings) => {
+  if (win) win.webContents.send('lockin-recordings-update', recordings)
+})
 ipcMain.on('close-search', () => {
   if (searchWin && !searchWin.isDestroyed()) searchWin.close()
 })
@@ -384,7 +388,30 @@ ipcMain.on('get-all-reminders', (event) => {
         const noteTitle = titleLine ? titleLine.slice(2).trim() : filename.replace('.md','')
         const lines = raw.split('\n')
         let currentTask = null
+        let inPhases = false
+        let currentPhase = null
         lines.forEach(line => {
+          if (line === '## phases') { inPhases = true; return }
+          if (line.startsWith('## ') && line !== '## phases') { inPhases = false; currentPhase = null }
+
+          if (inPhases && line.startsWith('### ')) {
+            currentPhase = line.slice(4).trim()
+          }
+          if (inPhases && currentPhase && line.startsWith('deadline: ')) {
+            const dateStr = line.slice(10).trim()
+            const isoString = dateStr + 'T23:59:00'
+            const deadlineTime = new Date(isoString)
+            if (!isNaN(deadlineTime)) {
+              allReminders.push({
+                taskText: currentPhase,
+                noteTitle, filename, mode, isoString,
+                isPast: deadlineTime < now,
+                done: false,
+                isPhaseDeadline: true
+              })
+            }
+          }
+
           if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
             currentTask = { text: line.slice(6), done: line.startsWith('- [x]') }
           }
@@ -396,7 +423,8 @@ ipcMain.on('get-all-reminders', (event) => {
                 taskText: currentTask.text,
                 noteTitle, filename, mode, isoString,
                 isPast: reminderTime < now,
-                done: currentTask.done
+                done: currentTask.done,
+                isPhaseDeadline: false
               })
             }
           }
