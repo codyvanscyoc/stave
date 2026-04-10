@@ -16,12 +16,16 @@ let searchWin = null
 let remindersWin = null
 let winMode = 'hide'
 
-const NOTES_DIR = path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Stave')
+const NOTES_DIR = process.platform === 'win32'
+  ? path.join(os.homedir(), fs.existsSync(path.join(os.homedir(), 'OneDrive')) ? 'OneDrive' : 'Documents', 'Stave')
+  : process.platform === 'linux'
+    ? path.join(os.homedir(), 'Documents', 'Stave')
+    : path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Stave')
 const WRITE_DIR = path.join(NOTES_DIR, 'write')
 const PLAN_DIR  = path.join(NOTES_DIR, 'plan')
 const PREFS_FILE = path.join(NOTES_DIR, 'prefs.json')
 
-const DEFAULT_PREFS = { width: 420, height: 750, posX: null, posY: null, winMode: 'hide' }
+const DEFAULT_PREFS = { width: 420, height: 750, posX: null, posY: null, winMode: process.platform === 'darwin' ? 'hide' : 'free' }
 
 function loadPrefs() {
   try {
@@ -86,9 +90,11 @@ function createWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage.createEmpty()
+  const icon = process.platform === 'win32'
+    ? nativeImage.createFromPath(path.join(__dirname, 'icon.png'))
+    : nativeImage.createEmpty()
   tray = new Tray(icon)
-  tray.setTitle('S†')
+  if (process.platform !== 'win32') tray.setTitle('S†')
   tray.setToolTip('S†AVE')
   tray.on('click', () => toggleWindow())
   tray.on('right-click', () => buildTrayMenu())
@@ -316,10 +322,7 @@ ipcMain.on('open-project-folder', (event, folderPath) => {
 })
 
 ipcMain.on('get-all-projects', (event) => {
-  const projectsDir = path.join(
-    os.homedir(), 'Library', 'Mobile Documents',
-    'com~apple~CloudDocs', 'Stave', 'projects'
-  )
+  const projectsDir = path.join(NOTES_DIR, 'projects')
   try {
     if (!fs.existsSync(projectsDir)) fs.mkdirSync(projectsDir, { recursive: true })
     const files = fs.readdirSync(projectsDir).filter(f => f.endsWith('.md'))
@@ -561,6 +564,11 @@ app.on('open-file', (event, filePath) => {
 })
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.codyvanscyoc.stave')
+    const filePath = process.argv.find(arg => arg.endsWith('.md') && fs.existsSync(arg))
+    if (filePath) pendingFilePath = filePath
+  }
   ensureDirs()
   createTray()
   createWindow()
@@ -593,7 +601,7 @@ app.whenReady().then(() => {
     }
   })
 
-  app.dock.hide()
+  if (app.dock) app.dock.hide()
 })
 
 app.on('window-all-closed', e => e.preventDefault())
