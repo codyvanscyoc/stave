@@ -1556,7 +1556,11 @@ function scoreSentence(s) {
 }
 
 function extractTasks() {
-  const text = document.getElementById('admin-area').value
+  const area = document.getElementById('admin-area')
+  const sel = area.selectionStart !== area.selectionEnd
+    ? area.value.slice(area.selectionStart, area.selectionEnd)
+    : area.value
+  const text = sel
   if (!text.trim()) return
   const tab = tabs[currentTabIndex]
   const existing = [

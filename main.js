@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, MenuItem, globalShortcut, nativeImage, screen, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, screen, ipcMain, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -505,55 +505,6 @@ ipcMain.on('export-pdf', (event, { html, title }) => {
         })
       } else { printWin.close() }
     })
-  })
-})
-// ── CONTEXT MENU ──
-
-app.on('web-contents-created', (event, contents) => {
-  contents.on('context-menu', (e, params) => {
-    const menu = new Menu()
-
-    // spell check suggestions
-    if (params.misspelledWord) {
-      if (params.dictionaryWords && params.dictionaryWords.length) {
-        params.dictionaryWords.slice(0, 5).forEach(word => {
-          menu.append(new MenuItem({
-            label: word,
-            click: () => contents.replaceMisspelling(word)
-          }))
-        })
-      } else {
-        menu.append(new MenuItem({ label: 'No suggestions', enabled: false }))
-      }
-      menu.append(new MenuItem({ type: 'separator' }))
-      menu.append(new MenuItem({
-        label: 'Add to dictionary',
-        click: () => contents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
-      }))
-      menu.append(new MenuItem({ type: 'separator' }))
-    }
-
-    // add as task — only show if text is selected
-    if (params.selectionText && params.selectionText.trim().length > 0) {
-      menu.append(new MenuItem({
-        label: '→ add as task',
-        click: () => {
-          if (win) win.webContents.send('add-selection-as-task', params.selectionText.trim())
-        }
-      }))
-      menu.append(new MenuItem({ type: 'separator' }))
-    }
-
-    // standard editing
-    if (params.isEditable) {
-      menu.append(new MenuItem({ role: 'cut' }))
-      menu.append(new MenuItem({ role: 'copy' }))
-      menu.append(new MenuItem({ role: 'paste' }))
-    } else if (params.selectionText) {
-      menu.append(new MenuItem({ role: 'copy' }))
-    }
-
-    if (menu.items.length > 0) menu.popup()
   })
 })
 let pendingFilePath = null
