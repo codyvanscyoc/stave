@@ -58,6 +58,7 @@ function createWindow() {
   })
 
   win.loadFile('index.html')
+  win.webContents.session.setSpellCheckerLanguages(['en-US'])
   win.webContents.once('did-finish-load', () => {
     if (pendingFilePath) {
       win.show()
