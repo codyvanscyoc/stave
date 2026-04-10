@@ -355,6 +355,7 @@ function serializeTab(tab) {
     md += '\n## phases\n'
     ;(tab.phases || []).forEach(phase => {
       md += `### ${phase.name}\n`
+      if (phase.color)    md += `color: ${phase.color}\n`
       if (phase.start)    md += `start: ${phase.start}\n`
       if (phase.deadline) md += `deadline: ${phase.deadline}\n`
       ;(phase.tasks || []).forEach(t => {
@@ -402,8 +403,10 @@ function parseNote(raw, mode) {
 
     if (section === 'phases') {
       if (line.startsWith('### ')) {
-        currentPhase = { name: line.slice(4).trim(), start: null, deadline: null, tasks: [] }
+        currentPhase = { name: line.slice(4).trim(), color: null, start: null, deadline: null, tasks: [] }
         phases.push(currentPhase)
+      } else if (line.startsWith('color: ') && currentPhase) {
+        currentPhase.color = line.slice(7).trim()
       } else if (line.startsWith('start: ') && currentPhase) {
         currentPhase.start = line.slice(7).trim()
       } else if (line.startsWith('deadline: ') && currentPhase) {

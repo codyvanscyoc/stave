@@ -782,6 +782,7 @@
       md += `\n## phases\n`
       ;(data.phases || []).forEach(phase => {
         md += `### ${phase.name}\n`
+        if (phase.color) md += `color: ${phase.color}\n`
         if (phase.start) md += `start: ${phase.start}\n`
         if (phase.deadline) md += `deadline: ${phase.deadline}\n`
         ;(phase.tasks || []).forEach(t => {
@@ -808,7 +809,7 @@
       list.innerHTML = ''
 
       phases.forEach((phase, pi) => {
-        const color = PHASE_COLORS[pi % PHASE_COLORS.length]
+        const color = phase.color || PHASE_COLORS[pi % PHASE_COLORS.length]
         const block = document.createElement('div')
         block.className = 'phase-block'
         block.dataset.index = pi
@@ -820,7 +821,7 @@
         const header = document.createElement('div')
         header.className = 'phase-header'
         header.onclick = (e) => {
-          if (e.target.closest('.phase-ctrl') || e.target.closest('.phase-deadline') || e.target.closest('.phase-name')) return
+          if (e.target.closest('.phase-ctrl') || e.target.closest('.phase-deadline') || e.target.closest('.phase-name') || e.target.closest('.phase-color-btn')) return
           document.querySelectorAll('.phase-block').forEach(b => b.classList.remove('selected'))
           block.classList.toggle('selected')
         }
@@ -844,6 +845,29 @@
         const controls = document.createElement('div')
         controls.className = 'phase-controls'
 
+        const colorBtn = document.createElement('button')
+        colorBtn.className = 'phase-color-btn'
+        colorBtn.title = 'change color'
+        colorBtn.style.cssText = `width:12px;height:12px;border-radius:50%;background:${color};border:none;cursor:pointer;padding:0;flex-shrink:0;outline:none;`
+        colorBtn.onclick = (e) => {
+          e.stopPropagation()
+          const existing = block.querySelector('.phase-color-picker')
+          if (existing) { existing.remove(); return }
+          document.querySelectorAll('.phase-color-picker').forEach(p => p.remove())
+          const picker = document.createElement('div')
+          picker.className = 'phase-color-picker'
+          picker.style.cssText = 'display:flex;gap:6px;padding:7px 10px;flex-wrap:wrap;border-bottom:0.5px solid var(--border);background:var(--bg2);'
+          PHASE_COLORS.forEach(c => {
+            const swatch = document.createElement('div')
+            swatch.style.cssText = `width:14px;height:14px;border-radius:50%;background:${c};cursor:pointer;flex-shrink:0;border:2px solid ${c === color ? 'white' : 'transparent'};transition:transform 0.12s;`
+            swatch.onmouseenter = () => { swatch.style.transform = 'scale(1.2)' }
+            swatch.onmouseleave = () => { swatch.style.transform = '' }
+            swatch.onclick = (e) => { e.stopPropagation(); phases[pi].color = c; autoSave(); renderPhases(); renderTimeline() }
+            picker.appendChild(swatch)
+          })
+          block.insertBefore(picker, tasksDiv)
+        }
+
         const upBtn = document.createElement('button')
         upBtn.className = 'phase-ctrl'; upBtn.textContent = '↑'
         upBtn.onclick = () => { if (pi > 0) { [phases[pi], phases[pi-1]] = [phases[pi-1], phases[pi]]; autoSave(); renderPhases(); renderTimeline() } }
@@ -858,7 +882,7 @@
           phases.splice(pi, 1); autoSave(); renderPhases(); renderTimeline()
         })
 
-        controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(delBtn)
+        controls.appendChild(colorBtn); controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(delBtn)
         header.appendChild(nameInput); header.appendChild(startBtn); header.appendChild(deadlineBtn); header.appendChild(controls)
 
         const tasksDiv = document.createElement('div')
@@ -908,7 +932,7 @@
     }
 
     function addPhase() {
-      phases.push({ name: 'new phase', start: null, deadline: null, tasks: [] })
+      phases.push({ name: 'new phase', color: PHASE_COLORS[phases.length % PHASE_COLORS.length], start: null, deadline: null, tasks: [] })
       autoSave(); renderPhases(); renderTimeline()
       setTimeout(() => {
         const blocks = document.querySelectorAll('.phase-block')
