@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, screen, ipcMain, Notification } = require('electron')
+const { app, BrowserWindow, Tray, Menu, MenuItem, globalShortcut, nativeImage, screen, ipcMain, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -507,6 +507,37 @@ ipcMain.on('export-pdf', (event, { html, title }) => {
     })
   })
 })
+// ── CONTEXT MENU ──
+app.on('web-contents-created', (event, contents) => {
+  contents.on('context-menu', (e, params) => {
+    const menu = new Menu()
+
+    if (params.misspelledWord) {
+      if (params.dictionaryWords && params.dictionaryWords.length) {
+        params.dictionaryWords.slice(0, 5).forEach(word => {
+          menu.append(new MenuItem({ label: word, click: () => contents.replaceMisspelling(word) }))
+        })
+        menu.append(new MenuItem({ type: 'separator' }))
+      }
+      menu.append(new MenuItem({
+        label: 'Add to dictionary',
+        click: () => contents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+      }))
+      menu.append(new MenuItem({ type: 'separator' }))
+    }
+
+    if (params.isEditable) {
+      menu.append(new MenuItem({ role: 'cut' }))
+      menu.append(new MenuItem({ role: 'copy' }))
+      menu.append(new MenuItem({ role: 'paste' }))
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ role: 'copy' }))
+    }
+
+    if (menu.items.length > 0) menu.popup()
+  })
+})
+
 let pendingFilePath = null
 app.on('open-file', (event, filePath) => {
   event.preventDefault()
