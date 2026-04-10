@@ -33,6 +33,11 @@ let activeRecorder     = null
 let activeRecorderIndex = -1
 let recordingStartTime = null
 let recordingTimerInterval = null
+let currentPlayingIndex = -1
+let currentAudio = null
+let lastWriteTabIndex = -1
+let lastPlanTabIndex  = -1
+let lastAdminSelection = { start: 0, end: 0 }
 
 // ════════════════════════════════════════
 // LIBRARIES
@@ -351,6 +356,7 @@ function serializeTab(tab) {
     md += '\n## phases\n'
     ;(tab.phases || []).forEach(phase => {
       md += `### ${phase.name}\n`
+      if (phase.color)    md += `color: ${phase.color}\n`
       if (phase.start)    md += `start: ${phase.start}\n`
       if (phase.deadline) md += `deadline: ${phase.deadline}\n`
       ;(phase.tasks || []).forEach(t => {
@@ -398,8 +404,10 @@ function parseNote(raw, mode) {
 
     if (section === 'phases') {
       if (line.startsWith('### ')) {
-        currentPhase = { name: line.slice(4).trim(), start: null, deadline: null, tasks: [] }
+        currentPhase = { name: line.slice(4).trim(), color: null, start: null, deadline: null, tasks: [] }
         phases.push(currentPhase)
+      } else if (line.startsWith('color: ') && currentPhase) {
+        currentPhase.color = line.slice(7).trim()
       } else if (line.startsWith('start: ') && currentPhase) {
         currentPhase.start = line.slice(7).trim()
       } else if (line.startsWith('deadline: ') && currentPhase) {
@@ -585,6 +593,11 @@ function autoSave() {
 function switchTab(index) {
   if (index === currentTabIndex && tabs[index]) return
 
+  // Remember last active tab per mode
+  const leaving = tabs[currentTabIndex]
+  if (leaving?.mode === 'write' || leaving?.mode === 'longform') lastWriteTabIndex = currentTabIndex
+  else if (leaving?.mode === 'plan') lastPlanTabIndex = currentTabIndex
+
   // Stop any active recording before switching
   if (activeRecorder && activeRecorder.state === 'recording') stopRecording()
 
@@ -672,6 +685,7 @@ function closeTab(index) {
 
   if (tabs.length === 1) {
     // don't close last tab — just clear it
+    isSwitching = true
     const tab = emptyTab(newTabMode)
     createNoteFile(tab, () => {
       tabs[0] = tab
@@ -735,7 +749,13 @@ function setNewTabMode(mode) {
     if (btn) btn.classList.toggle('active', m === mode)
   })
 
-  // switch to most recent tab of this mode
+  // return to the last tab the user was on in this mode, if it still exists
+  const lastIndex = mode === 'plan' ? lastPlanTabIndex : lastWriteTabIndex
+  if (lastIndex !== -1 && tabs[lastIndex]?.mode === mode) {
+    switchTab(lastIndex)
+    return
+  }
+  // otherwise fall back to most recent tab of this mode
   const modeTabIndex = tabs.reduce((found, tab, i) => tab.mode === mode ? i : found, -1)
   if (modeTabIndex !== -1) switchTab(modeTabIndex)
   else renderTabBar()
@@ -928,6 +948,19 @@ function handleBullet(e) {
       area.selectionStart = area.selectionEnd = lineStart + bullet.length
       autoSave()
     }
+  }
+
+  if (e.key === 'Enter') {
+    // ensure the new line is visible after any Enter keypress
+    requestAnimationFrame(() => {
+      const area = e.target
+      const lineH = parseFloat(window.getComputedStyle(area).lineHeight) || 28
+      const lines = area.value.substring(0, area.selectionStart).split('\n').length
+      const cursorBottom = lines * lineH
+      if (cursorBottom > area.scrollTop + area.clientHeight - lineH) {
+        area.scrollTop = cursorBottom - area.clientHeight + lineH * 2
+      }
+    })
   }
 }
 
@@ -1284,6 +1317,13 @@ function toggleRecordingsPanel() {
   if (recordingsOpen) renderRecordingsPanel()
 }
 
+function recColor(filename) {
+  if (!filename) return RECORDING_COLORS[0]
+  let h = 0
+  for (let i = 0; i < filename.length; i++) h = (h * 31 + filename.charCodeAt(i)) & 0xffff
+  return RECORDING_COLORS[h % RECORDING_COLORS.length]
+}
+
 function renderRecordingsPanel() {
   const tab = tabs[currentTabIndex]
   if (!tab) return
@@ -1294,7 +1334,7 @@ function renderRecordingsPanel() {
   const recs = tab.recordings || []
 
   recs.forEach((filename, i) => {
-    const color = RECORDING_COLORS[i % RECORDING_COLORS.length]
+    const color = recColor(filename)
     const row = document.createElement('div')
     row.className = 'rec-row'
 
@@ -1307,10 +1347,15 @@ function renderRecordingsPanel() {
       btn.innerHTML = '&#9632;'
       btn.title = 'stop recording'
       btn.onclick = () => stopRecording()
+    } else if (currentPlayingIndex === i) {
+      btn.innerHTML = '&#9632;'
+      btn.title = 'stop'
+      btn.style.opacity = '0.8'
+      btn.onclick = () => stopAudio()
     } else if (filename) {
       btn.innerHTML = '&#9654;'
       btn.title = 'play'
-      btn.onclick = () => playRecording(filename)
+      btn.onclick = () => playRecording(filename, i)
     } else {
       btn.innerHTML = '&#9210;'
       btn.title = 'start recording'
@@ -1433,13 +1478,21 @@ function stopRecording() {
   if (activeRecorder && activeRecorder.state === 'recording') activeRecorder.stop()
 }
 
-let currentAudio = null
-function playRecording(filename) {
+function stopAudio() {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null }
+  currentPlayingIndex = -1
+  renderRecordingsPanel()
+}
+
+function playRecording(filename, index) {
   const filepath = path.join(RECORDINGS_DIR, filename)
   if (!fs.existsSync(filepath)) return
-  if (currentAudio) { currentAudio.pause(); currentAudio = null }
+  stopAudio()
   currentAudio = new Audio('file://' + filepath)
+  currentPlayingIndex = index
+  currentAudio.onended = () => { currentAudio = null; currentPlayingIndex = -1; renderRecordingsPanel() }
   currentAudio.play()
+  renderRecordingsPanel()
 }
 
 function moveRecording(index, dir) {
@@ -1456,11 +1509,13 @@ function deleteRecording(index) {
   const tab = tabs[currentTabIndex]
   if (!tab || !tab.recordings) return
   const filename = tab.recordings[index]
+  if (currentPlayingIndex === index) stopAudio()
   if (filename) {
     const fp = path.join(RECORDINGS_DIR, filename)
     try { if (fs.existsSync(fp)) fs.unlinkSync(fp) } catch(e) {}
   }
   tab.recordings.splice(index, 1)
+  if (currentPlayingIndex > index) currentPlayingIndex--
   renderRecordingsPanel()
   autoSave()
 }
@@ -1502,7 +1557,9 @@ function scoreSentence(s) {
 }
 
 function extractTasks() {
-  const text = document.getElementById('admin-area').value
+  const area = document.getElementById('admin-area')
+  const { start, end } = lastAdminSelection
+  const text = start !== end ? area.value.slice(start, end) : area.value
   if (!text.trim()) return
   const tab = tabs[currentTabIndex]
   const existing = [
@@ -1906,7 +1963,15 @@ function bindIPC() {
   })
 
   ipcRenderer.on('add-selection-as-task', (event, text) => {
-    let planTabIndex = tabs.findIndex(t => t.mode === 'plan')
+    // prefer current tab if plan, then last active plan tab, then first plan tab found
+    let planTabIndex = -1
+    if (tabs[currentTabIndex]?.mode === 'plan') {
+      planTabIndex = currentTabIndex
+    } else if (lastPlanTabIndex !== -1 && tabs[lastPlanTabIndex]?.mode === 'plan') {
+      planTabIndex = lastPlanTabIndex
+    } else {
+      planTabIndex = tabs.findIndex(t => t.mode === 'plan')
+    }
     if (planTabIndex === -1) {
       const tab = emptyTab('plan')
       tabs.push(tab)
@@ -2042,6 +2107,10 @@ function bindKeys() {
   })
   document.getElementById('context-area').addEventListener('input', autoSave)
   document.getElementById('admin-area').addEventListener('input', autoSave)
+  document.getElementById('admin-area').addEventListener('blur', () => {
+    const a = document.getElementById('admin-area')
+    lastAdminSelection = { start: a.selectionStart, end: a.selectionEnd }
+  })
   document.getElementById('plan-context-input').addEventListener('input', autoSave)
   document.getElementById('note-title').addEventListener('input', () => {
     if (tabs[currentTabIndex]) tabs[currentTabIndex].title = document.getElementById('note-title').value

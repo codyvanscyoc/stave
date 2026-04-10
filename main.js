@@ -59,6 +59,14 @@ function createWindow() {
 
   win.loadFile('index.html')
   win.webContents.session.setSpellCheckerLanguages(['en-US'])
+  win.webContents.once('did-finish-load', () => {
+    if (pendingFilePath) {
+      win.show()
+      win.focus()
+      win.webContents.send('open-file-path', pendingFilePath)
+      pendingFilePath = null
+    }
+  })
   win.on('blur', () => { if (winMode === 'hide') win.hide() })
   win.on('resize', () => {
     const [w, h] = win.getSize()
@@ -180,9 +188,11 @@ function positionWindow() {
   const { workArea } = display
 
   if (prefs.posX !== null && prefs.posY !== null) {
-    // check if saved position is on a connected display
+    // check if saved position is on any connected display
     const savedDisplay = screen.getDisplayNearestPoint({ x: prefs.posX, y: prefs.posY })
-    if (savedDisplay.id === display.id) {
+    const allDisplays = screen.getAllDisplays()
+    const onValidDisplay = allDisplays.some(d => d.id === savedDisplay.id)
+    if (onValidDisplay) {
       win.setPosition(prefs.posX, prefs.posY)
       return
     }
@@ -267,7 +277,6 @@ ipcMain.on('open-lockin-plan', (event, data) => {
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   })
   lockInPlanWin.loadFile('lockin-plan.html')
-lockInPlanWin.webContents.openDevTools({ mode: 'detach' })
   lockInPlanWin.once('ready-to-show', () => {
     lockInPlanWin.show()
     lockInPlanWin.focus()
@@ -284,11 +293,12 @@ ipcMain.on('switch-plan-tab', (event, { index }) => {
   if (win) {
     win.webContents.send('reload-lockin-plan', { index })
   }
-  ipcMain.on('push-lockin-plan-data', (event, data) => {
+})
+
+ipcMain.on('push-lockin-plan-data', (event, data) => {
   if (lockInPlanWin && !lockInPlanWin.isDestroyed()) {
     lockInPlanWin.webContents.send('init-lockin-plan', data)
   }
-})
 })
 ipcMain.on('lockin-plan-save', (event, { filepath, content }) => {
   try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
@@ -499,24 +509,17 @@ ipcMain.on('export-pdf', (event, { html, title }) => {
   })
 })
 // ── CONTEXT MENU ──
-
 app.on('web-contents-created', (event, contents) => {
   contents.on('context-menu', (e, params) => {
     const menu = new Menu()
 
-    // spell check suggestions
     if (params.misspelledWord) {
       if (params.dictionaryWords && params.dictionaryWords.length) {
         params.dictionaryWords.slice(0, 5).forEach(word => {
-          menu.append(new MenuItem({
-            label: word,
-            click: () => contents.replaceMisspelling(word)
-          }))
+          menu.append(new MenuItem({ label: word, click: () => contents.replaceMisspelling(word) }))
         })
-      } else {
-        menu.append(new MenuItem({ label: 'No suggestions', enabled: false }))
+        menu.append(new MenuItem({ type: 'separator' }))
       }
-      menu.append(new MenuItem({ type: 'separator' }))
       menu.append(new MenuItem({
         label: 'Add to dictionary',
         click: () => contents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
@@ -524,18 +527,6 @@ app.on('web-contents-created', (event, contents) => {
       menu.append(new MenuItem({ type: 'separator' }))
     }
 
-    // add as task — only show if text is selected
-    if (params.selectionText && params.selectionText.trim().length > 0) {
-      menu.append(new MenuItem({
-        label: '→ add as task',
-        click: () => {
-          if (win) win.webContents.send('add-selection-as-task', params.selectionText.trim())
-        }
-      }))
-      menu.append(new MenuItem({ type: 'separator' }))
-    }
-
-    // standard editing
     if (params.isEditable) {
       menu.append(new MenuItem({ role: 'cut' }))
       menu.append(new MenuItem({ role: 'copy' }))
@@ -547,17 +538,21 @@ app.on('web-contents-created', (event, contents) => {
     if (menu.items.length > 0) menu.popup()
   })
 })
-app.whenReady().then(() => {
-  app.on('open-file', (event, filePath) => {
+
+let pendingFilePath = null
+app.on('open-file', (event, filePath) => {
   event.preventDefault()
-  if (filePath.endsWith('.md')) {
-    if (win && !win.isDestroyed()) {
-      win.show()
-      win.focus()
-      win.webContents.send('open-file-path', filePath)
-    }
+  if (!filePath.endsWith('.md')) return
+  if (win && !win.isDestroyed()) {
+    win.show()
+    win.focus()
+    win.webContents.send('open-file-path', filePath)
+  } else {
+    pendingFilePath = filePath
   }
 })
+
+app.whenReady().then(() => {
   ensureDirs()
   createTray()
   createWindow()

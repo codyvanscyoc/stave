@@ -172,7 +172,7 @@
       cursor: pointer; color: #fff; font-size: 11px;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    .lockin-rec-btn.recording { animation: rec-pulse 1s ease-in-out infinite; }
+    .lockin-rec-btn.recording { animation: lockin-rec-pulse 1s ease-in-out infinite; }
     @keyframes lockin-rec-pulse { 0%,100%{opacity:1;}50%{opacity:0.3;} }
     .lockin-rec-timer { font-size: 8px; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
     .lockin-rec-arrows { display: flex; flex-direction: column; align-items: center; }
@@ -518,7 +518,7 @@
     let drawerOpen = false
 
     // ── RECORDINGS ──
-    const LOCKIN_RECORDINGS_DIR = path.join(os.homedir(), 'Library/Mobile Documents/com~apple~CloudDocs/StaveNotes/recordings')
+    const LOCKIN_RECORDINGS_DIR = path.join(os.homedir(), 'Library', 'Mobile Documents', 'com~apple~CloudDocs', 'Stave', 'recordings')
     const REC_COLORS = ['#c8922a', '#4caf7d', '#7f77dd', '#378add']
     let lockinRecordings = []
     let lockinRecOpen = false
@@ -588,7 +588,11 @@
 
         const del = document.createElement('button')
         del.className = 'lockin-rec-delete'; del.textContent = '✕'; del.title = 'delete'
-        del.onclick = () => { lockinRecordings.splice(i, 1); syncLockinRecordings(); renderLockinRecordingsPanel() }
+        del.onclick = () => {
+          const fn = lockinRecordings[i]
+          if (fn) { try { const fp = path.join(LOCKIN_RECORDINGS_DIR, fn); if (fs.existsSync(fp)) fs.unlinkSync(fp) } catch(e) {} }
+          lockinRecordings.splice(i, 1); syncLockinRecordings(); renderLockinRecordingsPanel()
+        }
         row.appendChild(del)
         inner.appendChild(row)
       })
