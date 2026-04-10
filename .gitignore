@@ -5,3 +5,4 @@ web-raw.json
 lots_of_words.rtf
 *.log
 .DS_Store
+.claude/
