@@ -672,6 +672,7 @@ function closeTab(index) {
 
   if (tabs.length === 1) {
     // don't close last tab — just clear it
+    isSwitching = true
     const tab = emptyTab(newTabMode)
     createNoteFile(tab, () => {
       tabs[0] = tab
