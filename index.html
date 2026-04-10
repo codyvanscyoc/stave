@@ -25,6 +25,7 @@
       --teal2:    #2e8a57;
       --success:  #4caf7d;
       --danger:   #c0392b;
+      --editor-size: 13px;
     }
 
     html, body {
@@ -154,6 +155,60 @@
     #note-title::placeholder { color: var(--text3); }
     #note-meta { font-size: 10px; color: var(--text3); letter-spacing: 0.03em; flex-shrink: 0; }
 
+    #rec-toggle {
+      background: none; border: none; color: rgba(200,146,42,0.5); cursor: pointer;
+      padding: 4px 3px; flex-shrink: 0; display: flex; align-items: center;
+      border-radius: 4px;
+      transform: rotate(90deg); transition: color 0.15s, transform 0.2s ease;
+    }
+    #rec-toggle:hover { color: var(--accent); }
+    #rec-toggle.active { color: var(--accent); transform: rotate(0deg); }
+
+    #recordings-panel {
+      width: 0; flex-shrink: 0; overflow: hidden;
+      transition: width 0.2s ease;
+    }
+    #recordings-panel.open { width: 44px; }
+    .rec-panel-inner {
+      min-width: 44px; display: flex; flex-direction: column;
+      align-items: center; gap: 6px; padding: 4px 6px 8px;
+    }
+    .rec-row {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .rec-btn {
+      width: 28px; height: 28px; border-radius: 50%; border: none;
+      cursor: pointer; color: #fff; font-size: 11px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .rec-btn.recording { animation: rec-pulse 1s ease-in-out infinite; }
+    @keyframes rec-pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+    .rec-timer { font-size: 8px; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .rec-arrows { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .rec-arrow {
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      font-size: 8px; padding: 1px; line-height: 1;
+    }
+    .rec-arrow:hover { color: var(--text); }
+    .rec-delete {
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      font-size: 9px; padding: 1px;
+    }
+    .rec-delete:hover { color: var(--danger); }
+    .rec-add-btn {
+      background: none; border: none; color: var(--text3);
+      font-size: 18px; cursor: pointer; padding: 2px 0;
+      line-height: 1;
+    }
+    .rec-add-btn:hover { color: var(--text); }
+    .rec-hint {
+      font-size: 9px; color: var(--text3); letter-spacing: 0.1em;
+      writing-mode: vertical-rl; transform: rotate(0deg);
+      font-family: 'JetBrains Mono', monospace; user-select: none;
+      padding: 4px 0;
+    }
+
     /* ── PANELS ── */
     #panel-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
     .panel { display: none; flex-direction: column; flex: 1; min-height: 0; }
@@ -167,29 +222,25 @@
     /* ── WRITE PANEL ── */
     .idea-wrap {
       flex: 1; display: flex; flex-direction: column;
-      padding: 11px 13px 0; min-height: 0; position: relative;
+      padding: 11px 0 0 13px; min-height: 0;
+    }
+
+    .idea-main-row {
+      flex: 1; display: flex; flex-direction: row;
+      min-height: 0; position: relative;
     }
 
     #idea-area {
-      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      flex: 1; min-width: 0;
+      font-family: 'JetBrains Mono', monospace; font-size: var(--editor-size, 13px);
       font-weight: 300; line-height: 1.9; color: var(--text);
       background: transparent; border: none; outline: none;
-      resize: none; width: 100%; flex: 1; min-height: 0;
+      resize: none; min-height: 0;
       -webkit-user-select: text; user-select: text;
     }
 
     #idea-area::placeholder { color: var(--text3); font-style: italic; }
 
-    #syl-overlay {
-      position: absolute; top: 25px; right: 2px;
-      pointer-events: none; width: 26px;
-    }
-
-    .syl-count {
-      font-size: 9px; color: var(--text3); text-align: right;
-      font-family: 'JetBrains Mono', monospace;
-      height: 24.7px; display: flex; align-items: center; justify-content: flex-end;
-    }
 
     .context-wrap { padding: 7px 13px 0; flex-shrink: 0; }
 
@@ -280,7 +331,7 @@
 
     .drawer-close:hover { color: var(--text2); }
 
-    .drawer-scroll { max-height: 260px; overflow-y: auto; }
+    .drawer-scroll { max-height: 260px; min-height: 60px; overflow-y: auto; }
     .drawer-section { margin-bottom: 10px; }
 
     .drawer-label {
@@ -324,6 +375,14 @@
     .verse-ref { font-size: 10px; font-weight: 500; color: var(--accent); margin-bottom: 2px; letter-spacing: 0.04em; }
     .verse-text { font-size: 11px; color: var(--text2); line-height: 1.5; font-weight: 300; }
     .verse-text mark { background: var(--accentbg); color: var(--accent); border-radius: 2px; padding: 0 1px; }
+    .concordance-filter {
+      width: 100%; box-sizing: border-box; margin: 6px 0 8px;
+      background: var(--bg3); border: 0.5px solid var(--border2); border-radius: 5px;
+      color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      padding: 5px 8px; outline: none;
+    }
+    .concordance-filter::placeholder { color: var(--text3); }
+    .verse-list { max-height: 160px; overflow-y: auto; }
 
     .feel-group { margin-bottom: 6px; }
     .feel-group-label { font-size: 9px; color: var(--text3); margin-bottom: 3px; }
@@ -406,7 +465,7 @@
     }
 
     #admin-area {
-      font-family: 'JetBrains Mono', monospace; font-size: 13px;
+      font-family: 'JetBrains Mono', monospace; font-size: var(--editor-size, 13px);
       font-weight: 300; line-height: 1.9; color: var(--text);
       background: transparent; border: none; outline: none;
       resize: none; width: 100%; flex: 1; min-height: 0; height: 100%;
@@ -528,6 +587,79 @@
     }
 
     .reminder-footer { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+
+    /* ── SETTINGS MODAL ── */
+    #settings-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 900;
+      align-items: flex-start; justify-content: center;
+      padding-top: 56px;
+    }
+    #settings-overlay.open { display: flex; }
+    #settings-modal {
+      background: var(--bg2); border: 0.5px solid var(--border2);
+      border-radius: 10px; width: 320px; max-height: 78vh;
+      overflow-y: auto; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    #settings-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 14px; border-bottom: 0.5px solid var(--border);
+      font-size: 11px; font-weight: 500; letter-spacing: 0.1em; color: var(--accent);
+    }
+    .settings-section {
+      padding: 13px 14px; border-bottom: 0.5px solid var(--border);
+    }
+    .settings-section:last-child { border-bottom: none; }
+    .settings-label {
+      font-size: 9px; font-weight: 500; letter-spacing: 0.14em;
+      color: var(--text3); text-transform: uppercase; margin-bottom: 9px;
+    }
+    .settings-about { list-style: none; padding: 0; }
+    .settings-about li {
+      font-size: 11px; color: var(--text2); line-height: 1.8;
+      padding-left: 10px; position: relative;
+    }
+    .settings-about li::before { content: '•'; position: absolute; left: 0; color: var(--accent); }
+    .settings-version { font-size: 10px; color: var(--text3); margin-top: 7px; }
+    .settings-row {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px;
+    }
+    .settings-row:last-child { margin-bottom: 0; }
+    .settings-key { font-size: 11px; color: var(--text2); }
+    .settings-font-controls { display: flex; align-items: center; gap: 7px; }
+    .settings-font-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      padding: 3px 9px; border-radius: 5px; border: 0.5px solid var(--border2);
+      color: var(--text2); background: transparent; cursor: pointer;
+      transition: all 0.15s; outline: none;
+    }
+    .settings-font-btn:hover { color: var(--accent); border-color: var(--accent2); }
+    .settings-font-val { font-size: 11px; color: var(--text3); min-width: 28px; text-align: center; }
+    .settings-theme-btns { display: flex; gap: 5px; }
+    .settings-theme-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 3px 9px; border-radius: 5px; border: 0.5px solid var(--border2);
+      color: var(--text2); background: transparent; cursor: pointer;
+      transition: all 0.15s; outline: none; letter-spacing: 0.03em;
+    }
+    .settings-theme-btn:hover { color: var(--text); border-color: var(--text2); }
+    .settings-theme-btn.active { color: var(--accent); border-color: var(--accent); }
+    .settings-path {
+      font-size: 10px; color: var(--text3); margin-bottom: 8px;
+      word-break: break-all; line-height: 1.6;
+    }
+    .settings-finder-btn {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      padding: 3px 9px; border-radius: 5px; border: 0.5px solid var(--border2);
+      color: var(--text2); background: transparent; cursor: pointer;
+      transition: all 0.15s; outline: none;
+    }
+    .settings-finder-btn:hover { color: var(--accent); border-color: var(--accent2); }
+    .settings-shortcuts {
+      display: grid; grid-template-columns: 38px 1fr; gap: 5px 12px; align-items: center;
+    }
+    .settings-sc-key { font-size: 10px; color: var(--accent); font-weight: 500; text-align: right; }
+    .settings-sc-val { font-size: 11px; color: var(--text2); }
   </style>
 </head>
 <body>
@@ -535,6 +667,7 @@
   <div id="topbar">
     <span id="app-name">S†AVE</span>
     <div class="topbar-right">
+      <button class="topbar-icon-btn" onclick="openSettings()" title="settings">⚙</button>
       <button class="topbar-icon-btn" onclick="openSearch()" title="search notes (⌘F)">⌕</button>
       <button class="topbar-icon-btn" onclick="openReminders()" title="reminders (⌘R)" style="padding:0;">
         <img src="bell-transparent.png" width="14" height="14">
@@ -557,6 +690,13 @@
   <div id="note-meta-bar">
     <input id="note-title" placeholder="untitled..." spellcheck="false">
     <div id="note-meta"></div>
+    <button id="rec-toggle" onclick="toggleRecordingsPanel()" title="recordings">
+      <svg width="13" height="10" viewBox="0 0 13 10" fill="currentColor">
+        <rect width="13" height="1.5" rx="0.75"/>
+        <rect y="4.25" width="13" height="1.5" rx="0.75"/>
+        <rect y="8.5" width="13" height="1.5" rx="0.75"/>
+      </svg>
+    </button>
   </div>
 
   <div id="panel-wrap">
@@ -565,8 +705,10 @@
     <div id="panel-write" class="panel active">
       <div class="idea-wrap">
         <div class="field-label">write</div>
-        <div id="syl-overlay"></div>
-        <textarea id="idea-area" placeholder="write anything..." spellcheck="true"></textarea>
+        <div class="idea-main-row">
+          <textarea id="idea-area" placeholder="write anything..." spellcheck="true"></textarea>
+          <div id="recordings-panel"></div>
+        </div>
       </div>
       <div class="context-wrap">
         <div class="context-inner">
@@ -606,7 +748,7 @@
             <button class="drawer-close" onclick="closeDrawer()">close</button>
           </div>
           <div class="source-toggle">
-            <button class="source-btn active" id="src-general" onclick="setSource('general')">general</button>
+            <button class="source-btn active" id="src-general" onclick="setSource('general')">words</button>
             <button class="source-btn" id="src-songs" onclick="setSource('songs')">songs</button>
             <button class="source-btn" id="src-scripture" onclick="setSource('scripture')">scripture</button>
           </div>
@@ -665,6 +807,68 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- SETTINGS MODAL -->
+  <div id="settings-overlay" onclick="if(event.target===this)closeSettings()">
+    <div id="settings-modal">
+      <div id="settings-header">
+        <span>S†AVE — settings</span>
+        <button class="topbar-icon-btn" style="font-size:10px;width:auto;padding:2px 8px;" onclick="closeSettings()">close</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">about</div>
+        <ul class="settings-about">
+          <li>write &amp; plan notes in tabs</li>
+          <li>lock in mode for focused writing</li>
+          <li>audio memos attached to any note</li>
+          <li>phase timelines with deadlines &amp; reminders</li>
+          <li>songwriter word tools, scripture &amp; thesaurus</li>
+        </ul>
+        <div class="settings-version">v1.0.0</div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">appearance</div>
+        <div class="settings-row">
+          <span class="settings-key">font size</span>
+          <div class="settings-font-controls">
+            <button class="settings-font-btn" onclick="changeFontSize(-1)">A−</button>
+            <span class="settings-font-val" id="settings-font-val">13px</span>
+            <button class="settings-font-btn" onclick="changeFontSize(1)">A+</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="settings-key">theme</span>
+          <div class="settings-theme-btns">
+            <button class="settings-theme-btn active" id="theme-btn-stave" onclick="setTheme('stave')">stave</button>
+            <button class="settings-theme-btn" id="theme-btn-manuscript" onclick="setTheme('manuscript')">manuscript</button>
+            <button class="settings-theme-btn" id="theme-btn-terminal" onclick="setTheme('terminal')">terminal</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section" style="text-align:center;">
+        <button class="settings-finder-btn" onclick="resetSettings()">reset to defaults</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">files</div>
+        <div class="settings-path" id="settings-path-display"></div>
+        <button class="settings-finder-btn" onclick="revealInFinder()">reveal in finder</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-label">shortcuts</div>
+        <div class="settings-shortcuts">
+          <span class="settings-sc-key">⌘T</span><span class="settings-sc-val">new tab</span>
+          <span class="settings-sc-key">⌘F</span><span class="settings-sc-val">search</span>
+          <span class="settings-sc-key">⌘R</span><span class="settings-sc-val">reminders</span>
+          <span class="settings-sc-key">⌘S</span><span class="settings-sc-val">save note</span>
+          <span class="settings-sc-key">⌘B</span><span class="settings-sc-val">bold</span>
+          <span class="settings-sc-key">⌘I</span><span class="settings-sc-val">italic</span>
+          <span class="settings-sc-key">Tab</span><span class="settings-sc-val">indent bullet</span>
+          <span class="settings-sc-key">⇧Tab</span><span class="settings-sc-val">outdent bullet</span>
+          <span class="settings-sc-key">Esc</span><span class="settings-sc-val">close panels</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="renderer.js"></script>

@@ -604,6 +604,37 @@
     let currentDateField = 'deadline'
     let currentReminderTaskIndex = null
 
+    // ── THEMES ──
+    const LP_THEMES = {
+      stave: {
+        '--bg': '#1c1c1e', '--bg2': '#252528', '--bg3': '#2e2e32',
+        '--border': 'rgba(255,255,255,0.07)', '--border2': 'rgba(255,255,255,0.13)',
+        '--text': '#f0e8d8', '--text2': '#9a9080', '--text3': '#4e4a44',
+        '--accent': '#c8922a', '--accent2': '#a07420', '--accentbg': 'rgba(200,146,42,0.10)',
+        '--success': '#4caf7d', '--danger': '#c0392b'
+      },
+      manuscript: {
+        '--bg': '#f5f0e8', '--bg2': '#ede8df', '--bg3': '#e5dfd5',
+        '--border': 'rgba(0,0,0,0.08)', '--border2': 'rgba(0,0,0,0.15)',
+        '--text': '#2c2418', '--text2': '#7a6e5e', '--text3': '#b0a898',
+        '--accent': '#8b4513', '--accent2': '#6b3410', '--accentbg': 'rgba(139,69,19,0.10)',
+        '--success': '#2e8a57', '--danger': '#c0392b'
+      },
+      terminal: {
+        '--bg': '#000000', '--bg2': '#0a0a0a', '--bg3': '#111111',
+        '--border': 'rgba(0,255,65,0.1)', '--border2': 'rgba(0,255,65,0.2)',
+        '--text': '#00ff41', '--text2': '#00cc33', '--text3': '#006616',
+        '--accent': '#00ff41', '--accent2': '#00cc33', '--accentbg': 'rgba(0,255,65,0.10)',
+        '--success': '#00ff41', '--danger': '#ff4141'
+      }
+    }
+
+    function applyTheme(name) {
+      const vars = LP_THEMES[name]
+      if (!vars) return
+      Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
+    }
+
     // ── INIT ──
     ipcRenderer.on('init-lockin-plan', (event, data) => {
       currentFilepath = data.filepath
@@ -613,7 +644,8 @@
       tasks = data.tasks || []
       phases = data.phases || []
       links = data.links || []
-      
+
+      if (data.theme) applyTheme(data.theme)
 
       document.getElementById('project-name').value = currentTitle
       document.getElementById('plan-context').value = currentPlanContext

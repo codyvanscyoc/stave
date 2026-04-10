@@ -10,7 +10,9 @@ const WRITE_DIR    = path.join(NOTES_DIR, 'write')
 const PLAN_DIR     = path.join(NOTES_DIR, 'plan')
 const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
 const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
-const BIBLE_INDEX_PATH = path.join(__dirname, 'bible-index.json')
+const BIBLE_INDEX_PATH  = path.join(__dirname, 'bible-index.json')
+const RECORDINGS_DIR    = path.join(NOTES_DIR, 'recordings')
+const RECORDING_COLORS  = ['#c8922a', '#4caf7d', '#7f77dd', '#378add']
 
 // ── STATE ──
 let tabs           = []
@@ -26,14 +28,23 @@ let bibleIndex     = null
 let currentDrawerWord = ''
 let currentSource  = 'general'
 let fmtModes       = {}
+let recordingsOpen     = false
+let activeRecorder     = null
+let activeRecorderIndex = -1
+let recordingStartTime = null
+let recordingTimerInterval = null
 
 // ════════════════════════════════════════
 // LIBRARIES
 // ════════════════════════════════════════
 
 function loadCMU() {
-  try { const cmu = require('cmudict'); cmuDict = cmu.dict() }
-  catch(e) { cmuDict = {} }
+  try {
+    const { CMUDict } = require('cmudict')
+    const dict = new CMUDict()
+    dict.get('THE') // trigger full cache load
+    cmuDict = dict
+  } catch(e) { cmuDict = null }
 }
 
 function loadWordNet() {
@@ -54,9 +65,9 @@ function loadBibleIndex() {
 
 function getPhones(word) {
   if (!cmuDict) return null
-  const entry = cmuDict[word.toUpperCase()]
+  const entry = cmuDict.get(word.toUpperCase())
   if (!entry) return null
-  return Array.isArray(entry[0]) ? entry[0] : entry
+  return entry.split(' ')
 }
 
 function getRhymeSignature(word) {
@@ -83,14 +94,14 @@ function getEndingConsonants(word) {
 }
 
 function findRhymes(word) {
-  if (!cmuDict) return { perfect: [], near: [] }
-  const sig   = getRhymeSignature(word)
-  const vowel = getVowelSound(word)
-  const cons  = getEndingConsonants(word)
+  if (!cmuDict || !cmuDict._cache) return { perfect: [], near: [] }
+  const sig    = getRhymeSignature(word)
+  const vowel  = getVowelSound(word)
+  const cons   = getEndingConsonants(word)
   const wordUp = word.toUpperCase()
   const perfect = [], near = []
 
-  Object.keys(cmuDict).forEach(key => {
+  Object.keys(cmuDict._cache).forEach(key => {
     if (key === wordUp) return
     const candidate = key.toLowerCase()
     if (!/^[a-z]+$/.test(candidate)) return
@@ -242,6 +253,41 @@ const SONGS_WORDS = {
 }
 
 // ════════════════════════════════════════
+// WORD PALETTE (general poetic fallback)
+// ════════════════════════════════════════
+
+const WORD_PALETTE = [
+  { label: 'motion',  words: ['rise','fall','run','carry','pull','break','bend','lift','shake','still','turn','move','drift','scatter','gather','cross','climb','descend','return','flee'] },
+  { label: 'light',   words: ['dawn','glow','flicker','blaze','burn','shine','fade','ember','spark','flame','beam','gleam','dark','dim','shadow','bright','golden','pale','radiant','soft'] },
+  { label: 'nature',  words: ['stone','water','fire','wind','earth','seed','root','branch','river','ocean','mountain','valley','sky','soil','dust','rain','flood','drought','wild','deep'] },
+  { label: 'body',    words: ['hands','heart','voice','breath','eyes','bones','chest','knees','lips','skin','tears','feet','arms','blood','spine','face','throat','frame','pulse','ache'] },
+  { label: 'time',    words: ['moment','forever','ancient','before','after','always','never','once','now','long','again','soon','old','new','gone','remain','waiting','coming','past','end'] },
+  { label: 'sound',   words: ['whisper','cry','silence','echo','ring','hush','call','shout','sing','speak','roar','groan','moan','sigh','resound','quiet','loud','still','song','word'] },
+  { label: 'emotion', words: ['ache','wonder','grief','joy','longing','fear','hope','dread','awe','rage','peace','hunger','thirst','love','loss','shame','pride','doubt','trust','rest'] },
+  { label: 'place',   words: ['home','wilderness','threshold','crossing','refuge','exile','shelter','road','gate','door','field','shore','edge','center','void','ground','hidden','open','far','near'] }
+]
+
+function findWordWebMatches(word) {
+  const w = word.toLowerCase()
+  const matches = []
+  Object.values(SONGS_WORDS).forEach(group => {
+    const inSyns   = group.synonyms.some(s => s.toLowerCase() === w)
+    const inExpand = group.expand.some(s => s.toLowerCase() === w)
+    const inLabel  = group.label.toLowerCase().split(/[\s\/]+/).some(t => t === w)
+    if (inSyns || inExpand || inLabel) matches.push(group)
+  })
+  return matches
+}
+
+function getPaletteCategories(word) {
+  // deterministic 3-category selection based on word so it doesn't shuffle each call
+  const hash = word.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const picks = []
+  for (let i = 0; i < 3; i++) picks.push(WORD_PALETTE[(hash + i * 3) % WORD_PALETTE.length])
+  return picks
+}
+
+// ════════════════════════════════════════
 // TAB DATA MODEL
 // ════════════════════════════════════════
 
@@ -251,7 +297,7 @@ function emptyTab(mode) {
     mode: mode || newTabMode,
     title: '', idea: '', context: '', tags: [],
     planContext: '', admin: '', tasks: [],
-    phases: [], links: []
+    phases: [], links: [], recordings: []
   }
 }
 
@@ -271,10 +317,12 @@ function getColorForMode(mode) {
 
 function serializeTab(tab) {
   if (tab.mode === 'write' || tab.mode === 'longform') {
+    const recs = (tab.recordings || []).filter(Boolean)
     return [
       `# ${tab.title || 'untitled'}`,
       `type: ${tab.mode}`,
       `tags: ${(tab.tags||[]).join(', ')}`,
+      ...(recs.length ? [`recordings: ${recs.join(', ')}`] : []),
       '',
       '## idea',
       tab.idea || '',
@@ -320,13 +368,14 @@ function serializeTab(tab) {
 function parseNote(raw, mode) {
   const lines = raw.split('\n')
   let title = '', idea = '', context = '', admin = '', planContext = ''
-  let tags = [], tasks = [], phases = [], links = []
+  let tags = [], tasks = [], phases = [], links = [], recordings = []
   let section = '', currentPhase = null
 
   lines.forEach(line => {
     if (line.startsWith('# '))           { title = line.slice(2).trim(); return }
     if (line.startsWith('type: '))       { return }
     if (line.startsWith('tags: '))       { tags = line.slice(6).split(',').map(t=>t.trim()).filter(Boolean); return }
+    if (line.startsWith('recordings: ')) { recordings = line.slice(12).split(',').map(r=>r.trim()).filter(Boolean); return }
     if (line.startsWith('context1: '))   { planContext = line.slice(10); return }
     if (line === '## idea')              { section = 'idea'; return }
     if (line === '## context')           { section = 'context'; return }
@@ -376,7 +425,8 @@ function parseNote(raw, mode) {
     tags,
     tasks,
     phases,
-    links
+    links,
+    recordings
   }
 }
 
@@ -385,7 +435,7 @@ function parseNote(raw, mode) {
 // ════════════════════════════════════════
 
 function ensureDirs() {
-  [NOTES_DIR, WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].forEach(d => {
+  [NOTES_DIR, WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR, RECORDINGS_DIR].forEach(d => {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true })
   })
 }
@@ -535,6 +585,9 @@ function autoSave() {
 function switchTab(index) {
   if (index === currentTabIndex && tabs[index]) return
 
+  // Stop any active recording before switching
+  if (activeRecorder && activeRecorder.state === 'recording') stopRecording()
+
   // 1. Stop autosave timer
   clearTimeout(saveTimer)
   isSwitching = true
@@ -570,12 +623,14 @@ function loadTabIntoDOM(tab) {
   const isWriteLike = tab.mode === 'write' || tab.mode === 'longform'
   document.getElementById('panel-write').classList.toggle('active', isWriteLike)
   document.getElementById('panel-plan').classList.toggle('active', !isWriteLike)
+  document.getElementById('rec-toggle').style.display = isWriteLike ? '' : 'none'
 
   if (isWriteLike) {
     document.getElementById('idea-area').value = tab.idea || ''
     document.getElementById('context-area').value = tab.context || ''
     renderTagsFromArray(tab.tags || [])
     updateSyllableOverlay()
+    if (recordingsOpen) renderRecordingsPanel()
     setTimeout(() => document.getElementById('idea-area').focus(), 50)
   } else {
     document.getElementById('plan-context-input').value = tab.planContext || ''
@@ -733,17 +788,7 @@ function renderTagsFromArray(tagArray) {
 // SYLLABLE OVERLAY
 // ════════════════════════════════════════
 
-function updateSyllableOverlay() {
-  const overlay = document.getElementById('syl-overlay')
-  const lines   = document.getElementById('idea-area').value.split('\n')
-  overlay.innerHTML = ''
-  lines.forEach(line => {
-    const div = document.createElement('div')
-    div.className = 'syl-count'
-    if (line.trim().length > 0) div.textContent = countLineSyllables(line)
-    overlay.appendChild(div)
-  })
-}
+function updateSyllableOverlay() { /* removed */ }
 
 function getCurrentLine() {
   const area = document.getElementById('idea-area')
@@ -912,15 +957,15 @@ async function openDrawer(word) {
   const sylCount = countSyllables(clean)
   const lineSyls = countLineSyllables(getCurrentLine())
   document.getElementById('drawer-meta').textContent = `${sylCount} syl · line: ${lineSyls} syl`
-  document.getElementById('drawer-content').innerHTML = '<div class="drawer-loading">looking up...</div>'
   document.getElementById('tool-drawer').classList.add('open')
+  document.getElementById('drawer-content').innerHTML = ''
 
   await renderDrawerContent(clean)
 }
 
 async function renderDrawerContent(word) {
   const container = document.getElementById('drawer-content')
-  container.innerHTML = '<div class="drawer-loading">looking up...</div>'
+  container.innerHTML = ''
   if (currentSource === 'general')    await renderGeneral(word, container)
   else if (currentSource === 'songs')      renderSongs(word, container)
   else if (currentSource === 'scripture')  renderScripture(word, container)
@@ -931,22 +976,16 @@ async function renderGeneral(word, container) {
   const wordSig = getRhymeSignature(word)
   const { perfect, near } = findRhymes(word)
 
+  // ── rhymes ──
   const rhymeSection = document.createElement('div')
   rhymeSection.className = 'drawer-section'
   rhymeSection.innerHTML = `
     <div class="drawer-label">rhymes</div>
-    <div class="rhyme-group">
-      <div class="rhyme-group-label">perfect</div>
-      <div class="rhyme-chips" id="rc-perfect"></div>
-    </div>
-    <div class="rhyme-group">
-      <div class="rhyme-group-label">near</div>
-      <div class="rhyme-chips" id="rc-near"></div>
-    </div>`
+    <div class="rhyme-chips" id="rc-perfect"></div>`
   container.appendChild(rhymeSection)
   renderChips(document.getElementById('rc-perfect'), perfect, true)
-  renderChips(document.getElementById('rc-near'), near, false)
 
+  // ── synonyms (async) ──
   const synSection = document.createElement('div')
   synSection.className = 'drawer-section'
   synSection.innerHTML = '<div class="drawer-label">synonyms</div><div class="syn-chips" id="syn-chips"><span class="drawer-loading">looking up...</span></div>'
@@ -972,22 +1011,48 @@ async function renderGeneral(word, container) {
       synContainer.appendChild(chip)
     })
   }
+
+  // ── word web ──
+  const webSection = document.createElement('div')
+  webSection.className = 'drawer-section'
+  const webLabel = document.createElement('div')
+  webLabel.className = 'drawer-label'
+
+  const songMatches = findWordWebMatches(word)
+  const categories = songMatches.length ? songMatches : getPaletteCategories(word)
+  const sourceNote = songMatches.length ? '' : ' — poetic palette'
+  webLabel.textContent = 'word web' + sourceNote
+  webSection.appendChild(webLabel)
+
+  categories.forEach(group => {
+    const groupLabel = document.createElement('div')
+    groupLabel.className = 'rhyme-group-label'
+    groupLabel.style.marginTop = '8px'
+    groupLabel.textContent = group.label
+    webSection.appendChild(groupLabel)
+
+    const chips = document.createElement('div')
+    chips.className = 'syn-chips'
+    const wordList = group.words || [...(group.synonyms || []), ...(group.expand || [])]
+    wordList.forEach(w => {
+      const sig    = getRhymeSignature(w.split(' ')[0])
+      const rhymes = wordSig && sig && sig === wordSig
+      const chip   = document.createElement('div')
+      chip.className = 'syn-chip' + (rhymes ? ' rhymes' : '')
+      if (rhymes) { const dot = document.createElement('span'); dot.className = 'rhyme-dot'; chip.appendChild(dot) }
+      chip.appendChild(document.createTextNode(w))
+      chip.onclick = () => insertWord(w)
+      chips.appendChild(chip)
+    })
+    webSection.appendChild(chips)
+  })
+
+  container.appendChild(webSection)
 }
 
 function renderSongs(word, container) {
   container.innerHTML = ''
   const wordSig = getRhymeSignature(word)
-  const { perfect, near } = findRhymes(word)
-
-  const rhymeSection = document.createElement('div')
-  rhymeSection.className = 'drawer-section'
-  rhymeSection.innerHTML = `
-    <div class="drawer-label">rhymes</div>
-    <div class="rhyme-group"><div class="rhyme-group-label">perfect</div><div class="rhyme-chips" id="rc-songs-p"></div></div>
-    <div class="rhyme-group"><div class="rhyme-group-label">near</div><div class="rhyme-chips" id="rc-songs-n"></div></div>`
-  container.appendChild(rhymeSection)
-  renderChips(document.getElementById('rc-songs-p'), perfect, true)
-  renderChips(document.getElementById('rc-songs-n'), near, false)
 
   Object.values(SONGS_WORDS).forEach(group => {
     const section = document.createElement('div')
@@ -1016,18 +1081,6 @@ function renderSongs(word, container) {
 
 function renderScripture(word, container) {
   container.innerHTML = ''
-  const wordSig = getRhymeSignature(word)
-  const { perfect, near } = findRhymes(word)
-
-  const rhymeSection = document.createElement('div')
-  rhymeSection.className = 'drawer-section'
-  rhymeSection.innerHTML = `
-    <div class="drawer-label">rhymes</div>
-    <div class="rhyme-group"><div class="rhyme-group-label">perfect</div><div class="rhyme-chips" id="rc-scripture-p"></div></div>
-    <div class="rhyme-group"><div class="rhyme-group-label">near</div><div class="rhyme-chips" id="rc-scripture-n"></div></div>`
-  container.appendChild(rhymeSection)
-  renderChips(document.getElementById('rc-scripture-p'), perfect, true)
-  renderChips(document.getElementById('rc-scripture-n'), near, false)
 
   if (!bibleIndex) {
     const msg = document.createElement('div')
@@ -1043,25 +1096,51 @@ function renderScripture(word, container) {
   if (!results.length) {
     scriptSection.innerHTML = `<div class="drawer-label">scripture</div><div class="drawer-loading">"${word}" not found in WEB Bible</div>`
   } else {
-    scriptSection.innerHTML = `<div class="drawer-label">scripture — ${results.length} occurrence${results.length !== 1 ? 's' : ''}</div>`
-    results.slice(0, 8).forEach(v => {
-      const row = document.createElement('div')
-      row.className = 'verse-row'
-      const highlighted = v.text.replace(
-        new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
-        m => `<mark>${m}</mark>`
-      )
-      row.innerHTML = `<div class="verse-ref">${v.ref}</div><div class="verse-text">${highlighted}</div>`
-      row.onclick = () => insertWord(v.ref)
-      scriptSection.appendChild(row)
-    })
-    if (results.length > 8) {
-      const more = document.createElement('div')
-      more.className = 'drawer-loading'
-      more.style.marginTop = '6px'
-      more.textContent = `+ ${results.length - 8} more occurrences`
-      scriptSection.appendChild(more)
+    const header = document.createElement('div')
+    header.className = 'drawer-label'
+    header.textContent = `scripture — ${results.length} occurrence${results.length !== 1 ? 's' : ''}`
+    scriptSection.appendChild(header)
+
+    const filterInput = document.createElement('input')
+    filterInput.type = 'text'
+    filterInput.placeholder = 'filter by book or text...'
+    filterInput.className = 'concordance-filter'
+    scriptSection.appendChild(filterInput)
+
+    const verseList = document.createElement('div')
+    verseList.className = 'verse-list'
+    scriptSection.appendChild(verseList)
+
+    function renderVerses(query) {
+      verseList.innerHTML = ''
+      const q = query.toLowerCase().trim()
+      const filtered = q ? results.filter(v => v.ref.toLowerCase().includes(q) || v.text.toLowerCase().includes(q)) : results
+      if (!filtered.length) {
+        verseList.innerHTML = `<div class="drawer-loading">no matches for "${query}"</div>`
+        return
+      }
+      filtered.slice(0, 50).forEach(v => {
+        const row = document.createElement('div')
+        row.className = 'verse-row'
+        const highlighted = v.text.replace(
+          new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
+          m => `<mark>${m}</mark>`
+        )
+        row.innerHTML = `<div class="verse-ref">${v.ref}</div><div class="verse-text">${highlighted}</div>`
+        row.onclick = () => insertWord(v.ref)
+        verseList.appendChild(row)
+      })
+      if (filtered.length > 50) {
+        const more = document.createElement('div')
+        more.className = 'drawer-loading'
+        more.style.marginTop = '6px'
+        more.textContent = `+ ${filtered.length - 50} more — filter by book to narrow`
+        verseList.appendChild(more)
+      }
     }
+
+    renderVerses('')
+    filterInput.addEventListener('input', () => renderVerses(filterInput.value))
   }
   container.appendChild(scriptSection)
 }
@@ -1093,6 +1172,297 @@ function insertWord(word) {
   area.value = area.value.slice(0,s) + word + area.value.slice(e)
   area.selectionStart = area.selectionEnd = s + word.length
   area.focus(); autoSave()
+}
+
+// ════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════
+
+const THEMES = {
+  stave: {
+    '--bg': '#1c1c1e', '--bg2': '#252528', '--bg3': '#2e2e32',
+    '--border': 'rgba(255,255,255,0.07)', '--border2': 'rgba(255,255,255,0.13)',
+    '--text': '#f0e8d8', '--text2': '#9a9080', '--text3': '#4e4a44',
+    '--accent': '#c8922a', '--accent2': '#a07420', '--accentbg': 'rgba(200,146,42,0.10)',
+    '--teal': '#4caf7d', '--tealbg': 'rgba(76,175,125,0.10)', '--teal2': '#2e8a57',
+    '--success': '#4caf7d', '--danger': '#c0392b'
+  },
+  manuscript: {
+    '--bg': '#f5f0e8', '--bg2': '#ede8df', '--bg3': '#e5dfd5',
+    '--border': 'rgba(0,0,0,0.08)', '--border2': 'rgba(0,0,0,0.15)',
+    '--text': '#2c2418', '--text2': '#7a6e5e', '--text3': '#b0a898',
+    '--accent': '#8b4513', '--accent2': '#6b3410', '--accentbg': 'rgba(139,69,19,0.10)',
+    '--teal': '#2e8a57', '--tealbg': 'rgba(46,138,87,0.10)', '--teal2': '#1a5c38',
+    '--success': '#2e8a57', '--danger': '#c0392b'
+  },
+  terminal: {
+    '--bg': '#000000', '--bg2': '#0a0a0a', '--bg3': '#111111',
+    '--border': 'rgba(0,255,65,0.1)', '--border2': 'rgba(0,255,65,0.2)',
+    '--text': '#00ff41', '--text2': '#00cc33', '--text3': '#006616',
+    '--accent': '#00ff41', '--accent2': '#00cc33', '--accentbg': 'rgba(0,255,65,0.10)',
+    '--teal': '#00ff41', '--tealbg': 'rgba(0,255,65,0.10)', '--teal2': '#00cc33',
+    '--success': '#00ff41', '--danger': '#ff4141'
+  }
+}
+
+let currentTheme = 'stave'
+let currentFontSize = 13
+
+function openSettings() {
+  document.getElementById('settings-overlay').classList.add('open')
+  document.getElementById('settings-path-display').textContent = NOTES_DIR
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.remove('open')
+}
+
+function setTheme(name) {
+  if (!THEMES[name]) return
+  currentTheme = name
+  const vars = THEMES[name]
+  Object.entries(vars).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
+  ;['stave','manuscript','terminal'].forEach(t => {
+    document.getElementById('theme-btn-' + t).classList.toggle('active', t === name)
+  })
+  saveSettings()
+}
+
+function changeFontSize(delta) {
+  const sizes = [11, 12, 13, 14, 15, 16, 17]
+  const idx = sizes.indexOf(currentFontSize)
+  const next = sizes[Math.max(0, Math.min(sizes.length - 1, idx + delta))]
+  currentFontSize = next
+  document.documentElement.style.setProperty('--editor-size', next + 'px')
+  document.getElementById('settings-font-val').textContent = next + 'px'
+  saveSettings()
+}
+
+function revealInFinder() {
+  const { shell } = require('electron')
+  shell.openPath(NOTES_DIR)
+}
+
+function saveSettings() {
+  try {
+    const p = path.join(NOTES_DIR, 'prefs.json')
+    const existing = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {}
+    fs.writeFileSync(p, JSON.stringify({ ...existing, theme: currentTheme, fontSize: currentFontSize }, null, 2))
+  } catch(e) {}
+}
+
+function resetSettings() {
+  setTheme('stave')
+  currentFontSize = 13
+  document.documentElement.style.setProperty('--editor-size', '13px')
+  document.getElementById('settings-font-val').textContent = '13px'
+  saveSettings()
+}
+
+function loadSettings() {
+  try {
+    const p = path.join(NOTES_DIR, 'prefs.json')
+    if (!fs.existsSync(p)) return
+    const prefs = JSON.parse(fs.readFileSync(p, 'utf8'))
+    if (prefs.theme && THEMES[prefs.theme]) setTheme(prefs.theme)
+    if (prefs.fontSize) {
+      currentFontSize = prefs.fontSize
+      document.documentElement.style.setProperty('--editor-size', prefs.fontSize + 'px')
+      const el = document.getElementById('settings-font-val')
+      if (el) el.textContent = prefs.fontSize + 'px'
+    }
+  } catch(e) {}
+}
+
+// AUDIO RECORDINGS
+// ════════════════════════════════════════
+
+function toggleRecordingsPanel() {
+  recordingsOpen = !recordingsOpen
+  document.getElementById('recordings-panel').classList.toggle('open', recordingsOpen)
+  document.getElementById('rec-toggle').classList.toggle('active', recordingsOpen)
+  if (recordingsOpen) renderRecordingsPanel()
+}
+
+function renderRecordingsPanel() {
+  const tab = tabs[currentTabIndex]
+  if (!tab) return
+  const panel = document.getElementById('recordings-panel')
+  panel.innerHTML = ''
+  const inner = document.createElement('div')
+  inner.className = 'rec-panel-inner'
+  const recs = tab.recordings || []
+
+  recs.forEach((filename, i) => {
+    const color = RECORDING_COLORS[i % RECORDING_COLORS.length]
+    const row = document.createElement('div')
+    row.className = 'rec-row'
+
+    const btn = document.createElement('button')
+    btn.className = 'rec-btn'
+    btn.style.background = color
+
+    if (activeRecorderIndex === i) {
+      btn.classList.add('recording')
+      btn.innerHTML = '&#9632;'
+      btn.title = 'stop recording'
+      btn.onclick = () => stopRecording()
+    } else if (filename) {
+      btn.innerHTML = '&#9654;'
+      btn.title = 'play'
+      btn.onclick = () => playRecording(filename)
+    } else {
+      btn.innerHTML = '&#9210;'
+      btn.title = 'start recording'
+      btn.onclick = () => startRecording(i)
+    }
+    row.appendChild(btn)
+
+    if (activeRecorderIndex === i) {
+      const timer = document.createElement('span')
+      timer.className = 'rec-timer'
+      timer.id = 'rec-timer-display'
+      timer.textContent = '0:00'
+      row.appendChild(timer)
+    }
+
+    const arrows = document.createElement('div')
+    arrows.className = 'rec-arrows'
+    if (i > 0) {
+      const up = document.createElement('button')
+      up.className = 'rec-arrow'
+      up.textContent = '↑'
+      up.onclick = () => moveRecording(i, -1)
+      arrows.appendChild(up)
+    }
+    if (i < recs.length - 1) {
+      const dn = document.createElement('button')
+      dn.className = 'rec-arrow'
+      dn.textContent = '↓'
+      dn.onclick = () => moveRecording(i, 1)
+      arrows.appendChild(dn)
+    }
+    row.appendChild(arrows)
+
+    const del = document.createElement('button')
+    del.className = 'rec-delete'
+    del.textContent = '✕'
+    del.title = 'delete'
+    del.onclick = () => deleteRecording(i)
+    row.appendChild(del)
+    inner.appendChild(row)
+  })
+
+  if (recs.length === 0) {
+    const hint = document.createElement('span')
+    hint.className = 'rec-hint'
+    hint.textContent = 'audio memos'
+    inner.appendChild(hint)
+  }
+
+  const addBtn = document.createElement('button')
+  addBtn.className = 'rec-add-btn'
+  addBtn.textContent = '+'
+  addBtn.onclick = addRecordingSlot
+  inner.appendChild(addBtn)
+  panel.appendChild(inner)
+}
+
+function addRecordingSlot() {
+  const tab = tabs[currentTabIndex]
+  if (!tab) return
+  if (!tab.recordings) tab.recordings = []
+  tab.recordings.push(null)
+  renderRecordingsPanel()
+}
+
+async function startRecording(index) {
+  if (activeRecorder) return
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    const chunks = []
+    activeRecorder = new MediaRecorder(stream)
+    activeRecorderIndex = index
+    recordingStartTime = Date.now()
+
+    recordingTimerInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - recordingStartTime) / 1000)
+      const el = document.getElementById('rec-timer-display')
+      if (el) el.textContent = `${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')}`
+    }, 500)
+
+    activeRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+
+    activeRecorder.onstop = () => {
+      clearInterval(recordingTimerInterval)
+      recordingTimerInterval = null
+      stream.getTracks().forEach(t => t.stop())
+
+      const blob = new Blob(chunks, { type: 'audio/webm' })
+      const filename = `rec-${Date.now()}-${Math.random().toString(36).slice(2,6)}.webm`
+      const filepath = path.join(RECORDINGS_DIR, filename)
+
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          fs.writeFileSync(filepath, Buffer.from(reader.result))
+          const tab = tabs[currentTabIndex]
+          if (tab) {
+            if (!tab.recordings) tab.recordings = []
+            tab.recordings[activeRecorderIndex] = filename
+            autoSave()
+          }
+        } catch(e) { console.error('save recording failed', e) }
+        activeRecorder = null
+        activeRecorderIndex = -1
+        renderRecordingsPanel()
+      }
+      reader.readAsArrayBuffer(blob)
+    }
+
+    activeRecorder.start()
+    renderRecordingsPanel()
+  } catch(e) {
+    activeRecorder = null
+    activeRecorderIndex = -1
+    console.error('microphone access failed', e)
+  }
+}
+
+function stopRecording() {
+  if (activeRecorder && activeRecorder.state === 'recording') activeRecorder.stop()
+}
+
+let currentAudio = null
+function playRecording(filename) {
+  const filepath = path.join(RECORDINGS_DIR, filename)
+  if (!fs.existsSync(filepath)) return
+  if (currentAudio) { currentAudio.pause(); currentAudio = null }
+  currentAudio = new Audio('file://' + filepath)
+  currentAudio.play()
+}
+
+function moveRecording(index, dir) {
+  const tab = tabs[currentTabIndex]
+  if (!tab || !tab.recordings) return
+  const ni = index + dir
+  if (ni < 0 || ni >= tab.recordings.length) return
+  ;[tab.recordings[index], tab.recordings[ni]] = [tab.recordings[ni], tab.recordings[index]]
+  renderRecordingsPanel()
+  autoSave()
+}
+
+function deleteRecording(index) {
+  const tab = tabs[currentTabIndex]
+  if (!tab || !tab.recordings) return
+  const filename = tab.recordings[index]
+  if (filename) {
+    const fp = path.join(RECORDINGS_DIR, filename)
+    try { if (fs.existsSync(fp)) fs.unlinkSync(fp) } catch(e) {}
+  }
+  tab.recordings.splice(index, 1)
+  renderRecordingsPanel()
+  autoSave()
 }
 
 // ════════════════════════════════════════
@@ -1386,14 +1756,16 @@ function openLockIn() {
       tasks:       tab.tasks || [],
       phases:      tab.phases || [],
       links:       tab.links || [],
-      planTabs
+      planTabs,
+      theme:       currentTheme
     })
   } else {
     ipcRenderer.send('open-lockin', {
-      mode:     tab.mode,
-      content:  tab.idea || '',
-      title:    tab.title,
-      filepath: tab.filepath
+      mode:       tab.mode,
+      content:    tab.idea || '',
+      title:      tab.title,
+      filepath:   tab.filepath,
+      recordings: tab.recordings || []
     })
   }
 }
@@ -1584,6 +1956,57 @@ function bindIPC() {
       saveTabPrefs()
     } catch(e) {}
   })
+
+  ipcRenderer.on('drawer-lookup', async (event, word) => {
+    const clean = word.replace(/[^a-z]/gi, '').toLowerCase()
+    if (clean.length < 2) return
+
+    const { perfect, near } = findRhymes(clean)
+    const wordSig = getRhymeSignature(clean)
+
+    const syns = await getSynonyms(clean)
+    const synonyms = syns.map(s => {
+      const synWord = s.split(' ')[0]
+      const synSig  = getRhymeSignature(synWord)
+      return { word: s, rhymes: !!(wordSig && synSig && synSig === wordSig) }
+    })
+
+    const songs = Object.values(SONGS_WORDS).map(group => ({
+      label: group.label,
+      synonyms: group.synonyms.map(w => {
+        const sig = getRhymeSignature(w)
+        return { word: w, rhymes: !!(wordSig && sig && sig === wordSig) }
+      }),
+      expand: group.expand
+    }))
+
+    const scripture = bibleIndex ? (bibleIndex[clean] || []) : []
+
+    const songMatches = findWordWebMatches(clean)
+    const wordweb = (songMatches.length ? songMatches : getPaletteCategories(clean)).map(group => ({
+      label: group.label,
+      words: group.words || [...(group.synonyms || []), ...(group.expand || [])],
+      fromPalette: !songMatches.length
+    }))
+
+    ipcRenderer.send('lockin-drawer-results', {
+      word:      clean,
+      syllables: countSyllables(clean),
+      rhymes:    { perfect, near },
+      synonyms,
+      wordweb,
+      songs,
+      scripture
+    })
+  })
+
+  ipcRenderer.on('lockin-recordings-update', (event, recordings) => {
+    const tab = tabs[currentTabIndex]
+    if (!tab) return
+    tab.recordings = recordings
+    renderRecordingsPanel()
+    writeTabToDisk(tab)
+  })
 }
 
 // ════════════════════════════════════════
@@ -1595,7 +2018,7 @@ function bindKeys() {
   document.getElementById('admin-area').addEventListener('keydown', handleBullet)
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeDrawer(); closeReminder(); hideMarkdownHint() }
+    if (e.key === 'Escape') { closeDrawer(); closeReminder(); hideMarkdownHint(); closeSettings() }
     if (e.key === 'f' && e.metaKey) { e.preventDefault(); openSearch() }
     if (e.key === 'r' && e.metaKey) { e.preventDefault(); openReminders() }
     if (e.key === 'b' && e.metaKey) { e.preventDefault(); fmtToggle('**') }
@@ -1648,6 +2071,7 @@ function init() {
   loadWordNet()
   loadBibleIndex()
   ensureDirs()
+  loadSettings()
 
   const prefs = loadPrefs()
   if (prefs.winMode) { winModeState = prefs.winMode; updateWinModeBtns() }
