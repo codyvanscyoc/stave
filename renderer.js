@@ -37,6 +37,7 @@ let currentPlayingIndex = -1
 let currentAudio = null
 let lastWriteTabIndex = -1
 let lastPlanTabIndex  = -1
+let lastAdminSelection = { start: 0, end: 0 }
 
 // ════════════════════════════════════════
 // LIBRARIES
@@ -1557,10 +1558,8 @@ function scoreSentence(s) {
 
 function extractTasks() {
   const area = document.getElementById('admin-area')
-  const sel = area.selectionStart !== area.selectionEnd
-    ? area.value.slice(area.selectionStart, area.selectionEnd)
-    : area.value
-  const text = sel
+  const { start, end } = lastAdminSelection
+  const text = start !== end ? area.value.slice(start, end) : area.value
   if (!text.trim()) return
   const tab = tabs[currentTabIndex]
   const existing = [
@@ -2108,6 +2107,10 @@ function bindKeys() {
   })
   document.getElementById('context-area').addEventListener('input', autoSave)
   document.getElementById('admin-area').addEventListener('input', autoSave)
+  document.getElementById('admin-area').addEventListener('blur', () => {
+    const a = document.getElementById('admin-area')
+    lastAdminSelection = { start: a.selectionStart, end: a.selectionEnd }
+  })
   document.getElementById('plan-context-input').addEventListener('input', autoSave)
   document.getElementById('note-title').addEventListener('input', () => {
     if (tabs[currentTabIndex]) tabs[currentTabIndex].title = document.getElementById('note-title').value
