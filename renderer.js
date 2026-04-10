@@ -698,8 +698,18 @@ function closeTab(index) {
     return
   }
 
+  const closedMode = tabs[index].mode
   tabs.splice(index, 1)
-  if (currentTabIndex >= tabs.length) currentTabIndex = tabs.length - 1
+
+  // Stay in same mode if another tab of that mode exists
+  const sameModeIndex = tabs.reduce((found, tab, i) => tab.mode === closedMode ? i : found, -1)
+  if (sameModeIndex !== -1) {
+    currentTabIndex = sameModeIndex
+  } else if (currentTabIndex >= tabs.length) {
+    currentTabIndex = tabs.length - 1
+  }
+  newTabMode = tabs[currentTabIndex]?.mode || closedMode
+
   isSwitching = false
   loadTabIntoDOM(tabs[currentTabIndex])
   renderTabBar()

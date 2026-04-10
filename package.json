@@ -8,7 +8,6 @@
     "build": "electron-builder --mac"
   },
   "build": {
-    
     "appId": "com.codyvanscyoc.stave",
     "productName": "Stave",
     "mac": {
@@ -16,28 +15,28 @@
       "target": "dmg",
       "icon": "icon.png",
       "fileAssociations": [
-  {
-    "ext": "md",
-    "name": "Markdown",
-    "description": "Markdown Note",
-    "role": "Editor"
-  }
-]
+        {
+          "ext": "md",
+          "name": "Markdown",
+          "description": "Markdown Note",
+          "role": "Editor"
+        }
+      ]
     },
-   "files": [
-  "main.js",
-  "index.html",
-  "renderer.js",
-  "search.html",
-  "reminders.html",
-  "lockin.html",
-  "lockin-plan.html",
-  "bible-index.json",
-  "build-index.js",
-  "bell-transparent.png",
-  "icon.png",
-  "node_modules/**/*"
-]
+    "files": [
+      "main.js",
+      "index.html",
+      "renderer.js",
+      "search.html",
+      "reminders.html",
+      "lockin.html",
+      "lockin-plan.html",
+      "bible-index.json",
+      "build-index.js",
+      "bell-transparent.png",
+      "icon.png",
+      "node_modules/**/*"
+    ]
   },
   "keywords": [],
   "author": "Cody Van Scyoc",
@@ -49,7 +48,9 @@
   },
   "dependencies": {
     "cmudict": "^1.0.2",
+    "dictionary-en": "^3.2.0",
     "natural": "^8.0.1",
+    "nspell": "^2.1.5",
     "wordnet-db": "^3.1.14",
     "world-english-bible": "*"
   }

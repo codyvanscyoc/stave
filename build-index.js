@@ -14,7 +14,7 @@ books.forEach(book => {
     const text = item.value.trim()
     const words = text.toLowerCase().replace(/[^a-z\s]/g,'').split(/\s+/)
     words.forEach(word => {
-      if (word.length < 4 || SKIP.has(word)) return
+      if (word.length < 3 || SKIP.has(word)) return
       if (!index[word]) index[word] = []
       const existing = index[word].find(v => v.ref === ref)
       if (!existing) index[word].push({ ref, text: text.slice(0, 120) })

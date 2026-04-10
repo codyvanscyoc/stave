@@ -2,6 +2,13 @@ const { app, BrowserWindow, Tray, Menu, MenuItem, globalShortcut, nativeImage, s
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
+const nspell = require('nspell')
+const dictionaryEn = require('dictionary-en')
+
+let speller = null
+dictionaryEn((err, dict) => {
+  if (!err) speller = nspell(dict)
+})
 
 let tray = null
 let win = null
@@ -514,8 +521,9 @@ app.on('web-contents-created', (event, contents) => {
     const menu = new Menu()
 
     if (params.misspelledWord) {
-      if (params.dictionaryWords && params.dictionaryWords.length) {
-        params.dictionaryWords.slice(0, 5).forEach(word => {
+      const suggestions = speller ? speller.suggest(params.misspelledWord).slice(0, 5) : []
+      if (suggestions.length) {
+        suggestions.forEach(word => {
           menu.append(new MenuItem({ label: word, click: () => contents.replaceMisspelling(word) }))
         })
         menu.append(new MenuItem({ type: 'separator' }))
