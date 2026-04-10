@@ -682,6 +682,85 @@
     }
 
     // ── SAVE ──
+    function handleBullet(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        const area = e.target, pos = area.selectionStart
+        const text = area.value
+        const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+        const lineEnd = text.indexOf('\n', pos)
+        const end = lineEnd === -1 ? text.length : lineEnd
+        const line = text.slice(lineStart, end)
+        if (e.shiftKey) {
+          if (line.startsWith('    ')) {
+            area.value = text.slice(0, lineStart) + line.slice(4) + text.slice(end)
+            area.selectionStart = area.selectionEnd = Math.max(lineStart, pos - 4)
+          }
+        } else {
+          area.value = text.slice(0, lineStart) + '    ' + line + text.slice(end)
+          area.selectionStart = area.selectionEnd = pos + 4
+        }
+        autoSave(); return
+      }
+      if (e.key === 'Enter') {
+        const area = e.target, pos = area.selectionStart
+        const text = area.value
+        const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+        const line = text.slice(lineStart, pos)
+        const bulletMatch = line.match(/^(\s*)(•)\s+/)
+        if (bulletMatch) {
+          e.preventDefault()
+          if (line.trim() === '•') {
+            area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+            area.selectionStart = area.selectionEnd = lineStart + 1
+          } else {
+            const insert = '\n' + bulletMatch[1] + '• '
+            area.value = text.slice(0, pos) + insert + text.slice(pos)
+            area.selectionStart = area.selectionEnd = pos + insert.length
+          }
+          autoSave(); return
+        }
+        const numMatch = line.match(/^(\s*)(\d+)\.\s+/)
+        if (numMatch) {
+          e.preventDefault()
+          if (line.trim() === numMatch[2] + '.') {
+            area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+            area.selectionStart = area.selectionEnd = lineStart + 1
+          } else {
+            const insert = '\n' + numMatch[1] + (parseInt(numMatch[2]) + 1) + '. '
+            area.value = text.slice(0, pos) + insert + text.slice(pos)
+            area.selectionStart = area.selectionEnd = pos + insert.length
+          }
+          autoSave(); return
+        }
+        const dashMatch = line.match(/^(\s*)-\s+/)
+        if (dashMatch) {
+          e.preventDefault()
+          if (line.trim() === '-') {
+            area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+            area.selectionStart = area.selectionEnd = lineStart + 1
+          } else {
+            const insert = '\n' + dashMatch[1] + '- '
+            area.value = text.slice(0, pos) + insert + text.slice(pos)
+            area.selectionStart = area.selectionEnd = pos + insert.length
+          }
+          autoSave(); return
+        }
+      }
+      if (e.key === ' ') {
+        const area = e.target, pos = area.selectionStart
+        const text = area.value
+        const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+        if (text.slice(lineStart, pos) === '-') {
+          e.preventDefault()
+          const bullet = '• '
+          area.value = text.slice(0, lineStart) + bullet + text.slice(pos)
+          area.selectionStart = area.selectionEnd = lineStart + bullet.length
+          autoSave()
+        }
+      }
+    }
+
     function autoSave() {
       clearTimeout(saveTimer)
       saveTimer = setTimeout(() => saveNow(), 800)
@@ -1238,6 +1317,7 @@
       if (e.key === 's' && e.metaKey) { e.preventDefault(); saveNow() }
     })
 
+    document.getElementById('braindump-area').addEventListener('keydown', handleBullet)
     document.getElementById('braindump-area').addEventListener('input', () => {
       updateWordCount(); autoSave()
     })

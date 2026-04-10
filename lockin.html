@@ -138,6 +138,59 @@
     .outline-item.sub { padding-left: 10px; font-size: 10px; }
     .outline-divider { height: 0.5px; background: var(--text3); opacity: 0.3; margin: 6px 0; width: 60%; }
 
+    /* ── SIDE HAMBURGER BUTTONS (lock-in) ── */
+    .lockin-side-btn {
+      position: fixed; top: 98px; z-index: 200;
+      background: none; border: none;
+      color: rgba(200, 146, 42, 0.5);
+      font-size: 18px; cursor: pointer; outline: none;
+      letter-spacing: 2px; padding: 8px 10px;
+      transform: rotate(90deg);
+      transition: color 0.15s, transform 0.25s ease;
+    }
+    .lockin-side-btn:hover { color: var(--accent); }
+    #drawer-toggle { left: 0; }
+    #drawer-toggle.open { color: var(--accent); transform: rotate(0deg); }
+    #lockin-rec-toggle { right: 0; }
+    #lockin-rec-toggle.active { color: var(--accent); transform: rotate(0deg); }
+
+    /* ── RECORDINGS PANEL (lock-in) ── */
+    #lockin-recordings-panel {
+      width: 0; flex-shrink: 0; overflow: hidden;
+      transition: width 0.25s ease;
+      border-left: 0.5px solid transparent;
+    }
+    #lockin-recordings-panel.open { width: 44px; border-left-color: var(--border); }
+    .lockin-rec-inner {
+      min-width: 44px; display: flex; flex-direction: column;
+      align-items: center; gap: 6px; padding: 56px 6px 12px;
+    }
+    #lockin-recordings-panel > * { min-width: 44px; }
+    .lockin-rec-row { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .lockin-rec-btn {
+      width: 28px; height: 28px; border-radius: 50%; border: none;
+      cursor: pointer; color: #fff; font-size: 11px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .lockin-rec-btn.recording { animation: rec-pulse 1s ease-in-out infinite; }
+    @keyframes lockin-rec-pulse { 0%,100%{opacity:1;}50%{opacity:0.3;} }
+    .lockin-rec-timer { font-size: 8px; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+    .lockin-rec-arrows { display: flex; flex-direction: column; align-items: center; }
+    .lockin-rec-arrow {
+      background: none; border: none; color: var(--text3); cursor: pointer;
+      font-size: 8px; padding: 1px; line-height: 1;
+    }
+    .lockin-rec-arrow:hover { color: var(--text); }
+    .lockin-rec-delete {
+      background: none; border: none; color: var(--text3); cursor: pointer; font-size: 9px; padding: 1px;
+    }
+    .lockin-rec-delete:hover { color: #e05c5c; }
+    .lockin-rec-add-btn {
+      background: none; border: none; color: var(--text3);
+      font-size: 18px; cursor: pointer; padding: 2px 0; line-height: 1;
+    }
+    .lockin-rec-add-btn:hover { color: var(--text); }
+
     /* ── WRITING COLUMN ── */
     #write-column {
       flex: 1; display: flex; flex-direction: column;
@@ -180,19 +233,10 @@
 
 #drawer-panel.open { width: 280px; }
 
-#drawer-toggle {
-  font-family: 'JetBrains Mono', monospace; font-size: 14px;
-  padding: 0 10px; background: transparent; border: none;
-  color: var(--text3); cursor: pointer; outline: none;
-  transition: color 0.15s; -webkit-app-region: no-drag;
-  letter-spacing: 2px; line-height: 1;
-}
-
-#drawer-toggle:hover { color: var(--accent); }
-#drawer-toggle.open { color: var(--accent); }
 
 #drawer-inner {
-  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  display: flex; flex-direction: column; height: 100%;
+  min-width: 280px; flex-shrink: 0;
 }
 
 #drawer-word-display {
@@ -274,6 +318,14 @@
 
 .d-empty { font-size: 10px; color: var(--text3); font-style: italic; }
 
+.d-concordance-filter {
+  width: 100%; box-sizing: border-box; margin: 6px 0 8px;
+  background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 5px;
+  color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  padding: 5px 8px; outline: none;
+}
+.d-concordance-filter::placeholder { color: var(--text3); }
+
 .d-group-label {
   font-size: 9px; color: var(--text3); margin-bottom: 3px;
   font-family: 'JetBrains Mono', monospace;
@@ -353,7 +405,6 @@
   <div id="top-bar">
     <span id="stave-mark">S†</span>
     <div id="top-drag"></div>
-    <button id="drawer-toggle" onclick="toggleDrawer()" title="songwriter tools">≡</button>
     <button id="exit-btn" onclick="exitLockIn()">exit lock in</button>
   </div>
 
@@ -373,7 +424,7 @@
         <div id="drawer-word-display">highlight a word</div>
         <div id="drawer-meta-display"></div>
         <div class="drawer-source-toggle">
-          <button class="drawer-src-btn active" id="dsrc-general" onclick="setDrawerSource('general')">general</button>
+          <button class="drawer-src-btn active" id="dsrc-general" onclick="setDrawerSource('general')">words</button>
           <button class="drawer-src-btn" id="dsrc-songs" onclick="setDrawerSource('songs')">songs</button>
           <button class="drawer-src-btn" id="dsrc-scripture" onclick="setDrawerSource('scripture')">scripture</button>
         </div>
@@ -423,7 +474,12 @@
       </div>
     </div>
 
+    <div id="lockin-recordings-panel"></div>
+
   </div>
+
+  <button id="drawer-toggle" class="lockin-side-btn" onclick="toggleDrawer()" title="songwriter tools">&#9776;</button>
+  <button id="lockin-rec-toggle" class="lockin-side-btn" title="recordings" onclick="toggleLockinRecordings()">&#9776;</button>
 
   <!-- TEMPLATE PICKER -->
   <div id="template-picker" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:500;align-items:center;justify-content:center;">
@@ -450,6 +506,8 @@
   <script>
     const { ipcRenderer } = require('electron')
     const fs = require('fs')
+    const path = require('path')
+    const os = require('os')
 
     let currentRoom = 'stave'
     let outlineVisible = false
@@ -458,6 +516,144 @@
     let currentMode = 'write'
     let fmtModes = {}
     let drawerOpen = false
+
+    // ── RECORDINGS ──
+    const LOCKIN_RECORDINGS_DIR = path.join(os.homedir(), 'Library/Mobile Documents/com~apple~CloudDocs/StaveNotes/recordings')
+    const REC_COLORS = ['#c8922a', '#4caf7d', '#7f77dd', '#378add']
+    let lockinRecordings = []
+    let lockinRecOpen = false
+    let lockinActiveRecorder = null
+    let lockinActiveRecorderIndex = -1
+    let lockinRecordingTimer = null
+
+    function toggleLockinRecordings() {
+      lockinRecOpen = !lockinRecOpen
+      document.getElementById('lockin-rec-toggle').classList.toggle('active', lockinRecOpen)
+      document.getElementById('lockin-recordings-panel').classList.toggle('open', lockinRecOpen)
+      renderLockinRecordingsPanel()
+    }
+
+    function renderLockinRecordingsPanel() {
+      const panel = document.getElementById('lockin-recordings-panel')
+      panel.innerHTML = ''
+      const inner = document.createElement('div')
+      inner.className = 'lockin-rec-inner'
+      lockinRecordings.forEach((filename, i) => {
+        const color = REC_COLORS[i % REC_COLORS.length]
+        const row = document.createElement('div')
+        row.className = 'lockin-rec-row'
+
+        const btn = document.createElement('button')
+        btn.className = 'lockin-rec-btn'
+        btn.style.background = color
+        if (lockinActiveRecorderIndex === i) {
+          btn.classList.add('recording')
+          btn.innerHTML = '&#9632;'
+          btn.title = 'stop recording'
+          btn.onclick = () => stopLockinRecording()
+        } else if (filename) {
+          btn.innerHTML = '&#9654;'
+          btn.title = 'play'
+          btn.onclick = () => playLockinRecording(filename)
+        } else {
+          btn.innerHTML = '&#9210;'
+          btn.title = 'start recording'
+          btn.onclick = () => startLockinRecording(i)
+        }
+        row.appendChild(btn)
+
+        if (lockinActiveRecorderIndex === i) {
+          const timer = document.createElement('span')
+          timer.className = 'lockin-rec-timer'
+          timer.id = 'lockin-rec-timer-display'
+          timer.textContent = '0:00'
+          row.appendChild(timer)
+        }
+
+        const arrows = document.createElement('div')
+        arrows.className = 'lockin-rec-arrows'
+        if (i > 0) {
+          const up = document.createElement('button')
+          up.className = 'lockin-rec-arrow'; up.textContent = '↑'
+          up.onclick = () => { const t = lockinRecordings[i]; lockinRecordings[i] = lockinRecordings[i-1]; lockinRecordings[i-1] = t; syncLockinRecordings(); renderLockinRecordingsPanel() }
+          arrows.appendChild(up)
+        }
+        if (i < lockinRecordings.length - 1) {
+          const dn = document.createElement('button')
+          dn.className = 'lockin-rec-arrow'; dn.textContent = '↓'
+          dn.onclick = () => { const t = lockinRecordings[i]; lockinRecordings[i] = lockinRecordings[i+1]; lockinRecordings[i+1] = t; syncLockinRecordings(); renderLockinRecordingsPanel() }
+          arrows.appendChild(dn)
+        }
+        row.appendChild(arrows)
+
+        const del = document.createElement('button')
+        del.className = 'lockin-rec-delete'; del.textContent = '✕'; del.title = 'delete'
+        del.onclick = () => { lockinRecordings.splice(i, 1); syncLockinRecordings(); renderLockinRecordingsPanel() }
+        row.appendChild(del)
+        inner.appendChild(row)
+      })
+
+      const addBtn = document.createElement('button')
+      addBtn.className = 'lockin-rec-add-btn'; addBtn.textContent = '+'
+      addBtn.onclick = () => { lockinRecordings.push(null); renderLockinRecordingsPanel() }
+      inner.appendChild(addBtn)
+      panel.appendChild(inner)
+    }
+
+    async function startLockinRecording(index) {
+      if (lockinActiveRecorder) return
+      let stream
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }) } catch(e) { return }
+      const recorder = new MediaRecorder(stream)
+      const chunks = []
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        const fname = 'rec_' + Date.now() + '.webm'
+        const fpath = path.join(LOCKIN_RECORDINGS_DIR, fname)
+        const reader = new FileReader()
+        reader.onload = () => {
+          try {
+            if (!fs.existsSync(LOCKIN_RECORDINGS_DIR)) fs.mkdirSync(LOCKIN_RECORDINGS_DIR, { recursive: true })
+            fs.writeFileSync(fpath, Buffer.from(reader.result))
+            lockinRecordings[index] = fname
+          } catch(e) {}
+          clearInterval(lockinRecordingTimer)
+          lockinActiveRecorder = null; lockinActiveRecorderIndex = -1
+          syncLockinRecordings(); renderLockinRecordingsPanel()
+        }
+        reader.readAsArrayBuffer(blob)
+      }
+      recorder.start()
+      lockinActiveRecorder = recorder
+      lockinActiveRecorderIndex = index
+      let secs = 0
+      lockinRecordingTimer = setInterval(() => {
+        secs++
+        const el = document.getElementById('lockin-rec-timer-display')
+        if (el) el.textContent = Math.floor(secs/60) + ':' + String(secs%60).padStart(2,'0')
+      }, 1000)
+      renderLockinRecordingsPanel()
+    }
+
+    function stopLockinRecording() {
+      if (lockinActiveRecorder && lockinActiveRecorder.state !== 'inactive') lockinActiveRecorder.stop()
+    }
+
+    function playLockinRecording(filename) {
+      const fpath = path.join(LOCKIN_RECORDINGS_DIR, filename)
+      if (!fs.existsSync(fpath)) return
+      const data = fs.readFileSync(fpath)
+      const blob = new Blob([data], { type: 'audio/webm' })
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.play()
+    }
+
+    function syncLockinRecordings() {
+      ipcRenderer.send('lockin-recordings-update', lockinRecordings)
+    }
     let drawerSource = 'general'
     let lastDrawerData = null
 
@@ -478,7 +674,7 @@
     ipcRenderer.on('drawer-results', (event, data) => {
       lastDrawerData = data
       document.getElementById('drawer-word-display').textContent = data.word
-      document.getElementById('drawer-meta-display').textContent = `${data.syllables} syl`
+      document.getElementById('drawer-meta-display').textContent = ''
       renderDrawerResults(data)
     })
 
@@ -487,10 +683,10 @@
       scroll.innerHTML = ''
 
       if (drawerSource === 'general') {
-        // rhymes
+        // ── rhymes ──
         const rhymeSection = document.createElement('div')
         rhymeSection.className = 'd-section'
-        rhymeSection.innerHTML = '<div class="d-label">perfect rhymes</div>'
+        rhymeSection.innerHTML = '<div class="d-label">rhymes</div>'
         const perfectChips = document.createElement('div')
         perfectChips.className = 'd-chips'
         if (data.rhymes.perfect.length) {
@@ -505,39 +701,18 @@
           perfectChips.innerHTML = '<span class="d-empty">none found</span>'
         }
         rhymeSection.appendChild(perfectChips)
-
-        const nearLabel = document.createElement('div')
-        nearLabel.className = 'd-label'
-        nearLabel.style.marginTop = '8px'
-        nearLabel.textContent = 'near rhymes'
-        rhymeSection.appendChild(nearLabel)
-
-        const nearChips = document.createElement('div')
-        nearChips.className = 'd-chips'
-        if (data.rhymes.near.length) {
-          data.rhymes.near.forEach(w => {
-            const chip = document.createElement('div')
-            chip.className = 'd-chip'
-            chip.textContent = w
-            chip.onclick = () => insertWordToEditor(w)
-            nearChips.appendChild(chip)
-          })
-        } else {
-          nearChips.innerHTML = '<span class="d-empty">none found</span>'
-        }
-        rhymeSection.appendChild(nearChips)
         scroll.appendChild(rhymeSection)
 
-        // synonyms
+        // ── synonyms ──
         const synSection = document.createElement('div')
         synSection.className = 'd-section'
         synSection.innerHTML = '<div class="d-label">synonyms</div>'
         const synChips = document.createElement('div')
         synChips.className = 'd-chips'
-        if (data.synonyms.length) {
+        if (data.synonyms && data.synonyms.length) {
           data.synonyms.forEach(s => {
             const chip = document.createElement('div')
-            chip.className = 'd-chip' + (s.rhymes ? ' rhymes' : '')
+            chip.className = 'd-chip' + (s.rhymes ? ' perfect' : '')
             chip.textContent = s.word
             chip.onclick = () => insertWordToEditor(s.word)
             synChips.appendChild(chip)
@@ -548,23 +723,36 @@
         synSection.appendChild(synChips)
         scroll.appendChild(synSection)
 
-      } else if (drawerSource === 'songs') {
-        // rhymes first
-        const rhymeSection = document.createElement('div')
-        rhymeSection.className = 'd-section'
-        rhymeSection.innerHTML = '<div class="d-label">rhymes</div>'
-        const chips = document.createElement('div')
-        chips.className = 'd-chips'
-        data.rhymes.perfect.forEach(w => {
-          const chip = document.createElement('div')
-          chip.className = 'd-chip perfect'
-          chip.textContent = w
-          chip.onclick = () => insertWordToEditor(w)
-          chips.appendChild(chip)
-        })
-        rhymeSection.appendChild(chips)
-        scroll.appendChild(rhymeSection)
+        // ── word web ──
+        if (data.wordweb && data.wordweb.length) {
+          const webSection = document.createElement('div')
+          webSection.className = 'd-section'
+          const webLbl = document.createElement('div')
+          webLbl.className = 'd-label'
+          webLbl.textContent = data.wordweb[0].fromPalette ? 'word web — poetic palette' : 'word web'
+          webSection.appendChild(webLbl)
 
+          data.wordweb.forEach(group => {
+            const gl = document.createElement('div')
+            gl.className = 'd-group-label'
+            gl.style.marginTop = '8px'
+            gl.textContent = group.label
+            webSection.appendChild(gl)
+            const chips = document.createElement('div')
+            chips.className = 'd-chips'
+            group.words.forEach(w => {
+              const chip = document.createElement('div')
+              chip.className = 'd-chip'
+              chip.textContent = w
+              chip.onclick = () => insertWordToEditor(w)
+              chips.appendChild(chip)
+            })
+            webSection.appendChild(chips)
+          })
+          scroll.appendChild(webSection)
+        }
+
+      } else if (drawerSource === 'songs') {
         // songs categories
         data.songs.forEach(group => {
           const section = document.createElement('div')
@@ -603,38 +791,53 @@
         })
 
       } else if (drawerSource === 'scripture') {
-        const rhymeSection = document.createElement('div')
-        rhymeSection.className = 'd-section'
-        rhymeSection.innerHTML = '<div class="d-label">rhymes</div>'
-        const chips = document.createElement('div')
-        chips.className = 'd-chips'
-        data.rhymes.perfect.forEach(w => {
-          const chip = document.createElement('div')
-          chip.className = 'd-chip perfect'
-          chip.textContent = w
-          chip.onclick = () => insertWordToEditor(w)
-          chips.appendChild(chip)
-        })
-        rhymeSection.appendChild(chips)
-        scroll.appendChild(rhymeSection)
-
         const scriptSection = document.createElement('div')
         scriptSection.className = 'd-section'
         if (!data.scripture.length) {
           scriptSection.innerHTML = `<div class="d-label">scripture</div><div class="d-empty">"${data.word}" not found</div>`
         } else {
-          scriptSection.innerHTML = `<div class="d-label">scripture — ${data.scripture.length} results</div>`
-          data.scripture.forEach(v => {
-            const verse = document.createElement('div')
-            verse.className = 'd-verse'
-            const highlighted = v.text.replace(
-              new RegExp(data.word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi'),
-              m => `<mark>${m}</mark>`
-            )
-            verse.innerHTML = `<div class="d-verse-ref">${v.ref}</div><div class="d-verse-text">${highlighted}</div>`
-            verse.onclick = () => insertWordToEditor(v.ref)
-            scriptSection.appendChild(verse)
-          })
+          const hdr = document.createElement('div')
+          hdr.className = 'd-label'
+          hdr.textContent = `scripture — ${data.scripture.length} results`
+          scriptSection.appendChild(hdr)
+
+          const filterInput = document.createElement('input')
+          filterInput.type = 'text'
+          filterInput.placeholder = 'filter by book or text...'
+          filterInput.className = 'd-concordance-filter'
+          scriptSection.appendChild(filterInput)
+
+          const verseList = document.createElement('div')
+          scriptSection.appendChild(verseList)
+
+          const wordPatStr = data.word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')
+          function renderVerses(query) {
+            verseList.innerHTML = ''
+            const q = query.toLowerCase().trim()
+            const filtered = q ? data.scripture.filter(v => v.ref.toLowerCase().includes(q) || v.text.toLowerCase().includes(q)) : data.scripture
+            if (!filtered.length) {
+              verseList.innerHTML = `<div class="d-empty">no matches for "${query}"</div>`
+              return
+            }
+            filtered.slice(0, 50).forEach(v => {
+              const verse = document.createElement('div')
+              verse.className = 'd-verse'
+              const highlighted = v.text.replace(new RegExp(wordPatStr, 'gi'), m => `<mark>${m}</mark>`)
+              verse.innerHTML = `<div class="d-verse-ref">${v.ref}</div><div class="d-verse-text">${highlighted}</div>`
+              verse.onclick = () => insertWordToEditor(v.ref)
+              verseList.appendChild(verse)
+            })
+            if (filtered.length > 50) {
+              const more = document.createElement('div')
+              more.className = 'd-empty'
+              more.style.marginTop = '6px'
+              more.textContent = `+ ${filtered.length - 50} more — filter by book to narrow`
+              verseList.appendChild(more)
+            }
+          }
+
+          renderVerses('')
+          filterInput.addEventListener('input', () => renderVerses(filterInput.value))
         }
         scroll.appendChild(scriptSection)
       }
@@ -648,12 +851,13 @@
       editor.focus(); autoSave()
     }
 
-    ipcRenderer.on('init-lockin', (event, { mode, content, title, filepath }) => {
+    ipcRenderer.on('init-lockin', (event, { mode, content, title, filepath, recordings }) => {
       currentMode = mode
       currentFilepath = filepath
       document.getElementById('doc-title').textContent = title || 'untitled'
       document.getElementById('editor').value = content || ''
       document.getElementById('editor').focus()
+      lockinRecordings = recordings || []
       updateWordCount()
       updateOutline()
       if (mode === 'longform' && !content) showTemplatePicker()
@@ -926,6 +1130,85 @@
     }
 
     // ── AUTOSAVE ──
+    function handleBullet(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault()
+        const area = e.target, pos = area.selectionStart
+        const text = area.value
+        const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+        const lineEnd = text.indexOf('\n', pos)
+        const end = lineEnd === -1 ? text.length : lineEnd
+        const line = text.slice(lineStart, end)
+        if (e.shiftKey) {
+          if (line.startsWith('    ')) {
+            area.value = text.slice(0, lineStart) + line.slice(4) + text.slice(end)
+            area.selectionStart = area.selectionEnd = Math.max(lineStart, pos - 4)
+          }
+        } else {
+          area.value = text.slice(0, lineStart) + '    ' + line + text.slice(end)
+          area.selectionStart = area.selectionEnd = pos + 4
+        }
+        autoSave(); return
+      }
+      if (e.key === 'Enter') {
+        const area = e.target, pos = area.selectionStart
+        const text = area.value
+        const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+        const line = text.slice(lineStart, pos)
+        const bulletMatch = line.match(/^(\s*)(•)\s+/)
+        if (bulletMatch) {
+          e.preventDefault()
+          if (line.trim() === '•') {
+            area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+            area.selectionStart = area.selectionEnd = lineStart + 1
+          } else {
+            const insert = '\n' + bulletMatch[1] + '• '
+            area.value = text.slice(0, pos) + insert + text.slice(pos)
+            area.selectionStart = area.selectionEnd = pos + insert.length
+          }
+          autoSave(); return
+        }
+        const numMatch = line.match(/^(\s*)(\d+)\.\s+/)
+        if (numMatch) {
+          e.preventDefault()
+          if (line.trim() === numMatch[2] + '.') {
+            area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+            area.selectionStart = area.selectionEnd = lineStart + 1
+          } else {
+            const insert = '\n' + numMatch[1] + (parseInt(numMatch[2]) + 1) + '. '
+            area.value = text.slice(0, pos) + insert + text.slice(pos)
+            area.selectionStart = area.selectionEnd = pos + insert.length
+          }
+          autoSave(); return
+        }
+        const dashMatch = line.match(/^(\s*)-\s+/)
+        if (dashMatch) {
+          e.preventDefault()
+          if (line.trim() === '-') {
+            area.value = text.slice(0, lineStart) + '\n' + text.slice(pos)
+            area.selectionStart = area.selectionEnd = lineStart + 1
+          } else {
+            const insert = '\n' + dashMatch[1] + '- '
+            area.value = text.slice(0, pos) + insert + text.slice(pos)
+            area.selectionStart = area.selectionEnd = pos + insert.length
+          }
+          autoSave(); return
+        }
+      }
+      if (e.key === ' ') {
+        const area = e.target, pos = area.selectionStart
+        const text = area.value
+        const lineStart = text.lastIndexOf('\n', pos - 1) + 1
+        if (text.slice(lineStart, pos) === '-') {
+          e.preventDefault()
+          const bullet = '• '
+          area.value = text.slice(0, lineStart) + bullet + text.slice(pos)
+          area.selectionStart = area.selectionEnd = lineStart + bullet.length
+          autoSave()
+        }
+      }
+    }
+
     function autoSave() {
       clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {
@@ -966,18 +1249,20 @@
       if (e.key === 'i' && e.metaKey) { e.preventDefault(); fmtToggle('_') }
     })
 
+    document.getElementById('editor').addEventListener('keydown', handleBullet)
     document.getElementById('editor').addEventListener('input', () => {
       updateWordCount(); autoSave()
       if (outlineVisible) updateOutline()
     })
     document.getElementById('editor').addEventListener('mouseup', () => {
-    setTimeout(() => {
-      const sel = window.getSelection()?.toString().trim()
-      if (sel && sel.length > 1 && !sel.includes(' ') && drawerOpen) {
-        ipcRenderer.send('lockin-drawer-lookup', sel)
-      }
-    }, 50)
-  })
+      setTimeout(() => {
+        const editor = document.getElementById('editor')
+        const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim()
+        if (sel && sel.length > 1 && !sel.includes(' ') && drawerOpen) {
+          ipcRenderer.send('lockin-drawer-lookup', sel)
+        }
+      }, 50)
+    })
   </script>
 </body>
 </html>
