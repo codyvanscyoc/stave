@@ -22,7 +22,7 @@ jobs:
         run: npm install
 
       - name: Build .dmg
-        run: npm run build
+        run: npx electron-builder --mac --publish never
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
