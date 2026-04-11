@@ -180,14 +180,11 @@ function getNotesList(mode) {
 
 function toggleWindow() {
   if (!win || win.isDestroyed()) return
-  if (win.isVisible()) {
-    if (winMode === 'hide') win.hide()
-    else {
-      positionWindow()
-      win.focus()
-    }
+  if (win.isVisible() && winMode === 'hide') {
+    win.hide()
   } else {
     positionWindow()
+    app.focus({ steal: true })
     win.show()
     win.focus()
   }
