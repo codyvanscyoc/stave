@@ -21,22 +21,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Import signing certificate
-        if: ${{ secrets.MAC_CERTS != '' }}
-        run: |
-          echo "${{ secrets.MAC_CERTS }}" | base64 --decode > certificate.p12
-          security create-keychain -p actions temp.keychain
-          security import certificate.p12 -k temp.keychain -P "${{ secrets.MAC_CERTS_PASSWORD }}" -T /usr/bin/codesign
-          security list-keychains -s temp.keychain
-          security default-keychain -s temp.keychain
-          security unlock-keychain -p actions temp.keychain
-          security set-key-partition-list -S apple-tool:,apple: -s -k actions temp.keychain
-
       - name: Build .dmg
-        env:
-          CSC_LINK: ${{ secrets.MAC_CERTS }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
-          CSC_FOR_PULL_REQUEST: true
         run: npm run build
 
       - name: Upload to GitHub Release

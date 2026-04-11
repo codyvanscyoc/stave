@@ -1,6 +1,6 @@
 {
   "name": "stave",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A minimal note app for creative and admin thinking",
   "main": "main.js",
   "scripts": {
@@ -26,13 +26,21 @@
       ]
     },
     "win": {
-      "target": "portable",
-      "icon": "icon.png"
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Stave"
     },
     "linux": {
       "target": "deb",
       "icon": "icon.png",
-      "category": "Office"
+      "category": "Office",
+      "maintainer": "Cody Van Scyoc <codyvanscyoc@users.noreply.github.com>"
     },
     "files": [
       "main.js",
