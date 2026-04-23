@@ -416,6 +416,8 @@
     <button class="fmt-btn" onclick="fmtBullet()" title="bullet">•</button>
     <div class="fmt-sep"></div>
     <button class="fmt-btn" onclick="fmtSection()" title="section break">—</button>
+    <div class="fmt-sep"></div>
+    <button class="fmt-btn" onclick="importFile()" title="import .md or .txt">import</button>
   </div>
 
   <div id="layout">
@@ -982,31 +984,110 @@
       document.getElementById('confirm-ok').onclick = () => { popup.style.display = 'none'; onConfirm() }
     }
 
+    // ── IMPORT ──
+    // Requests a file-picker from main and inserts the file's text at the
+    // cursor. Never changes currentFilepath — the imported content lives in
+    // the current note, not in a new tab attached to the source file.
+    function importFile() {
+      ipcRenderer.send('import-file-dialog')
+    }
+
+    ipcRenderer.on('import-file-result', (event, result) => {
+      if (!result || !result.content) return
+      const editor = document.getElementById('editor')
+      const priorValue = editor.value
+      const pos = editor.selectionStart
+      const before = editor.value.slice(0, pos)
+      const after  = editor.value.slice(pos)
+      const needsLeadingNL  = before.length && !/\n\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : ''
+      const needsTrailingNL = after.length  && !/^\n\n/.test(after)  ? (after.startsWith('\n') ? '\n' : '\n\n') : ''
+      const insert = needsLeadingNL + result.content + needsTrailingNL
+      editor.value = before + insert + after
+      editor.selectionStart = editor.selectionEnd = pos + insert.length
+      autoSave(); updateWordCount()
+      if (outlineVisible) updateOutline()
+      const label = result.basename ? `Imported ${result.basename}.` : 'Imported.'
+      showUndoToast(label, () => {
+        editor.value = priorValue
+        autoSave(); updateWordCount()
+        if (outlineVisible) updateOutline()
+      })
+      editor.focus()
+    })
+
+    // Transient toast with an optional undo action. Auto-dismisses after 10s.
+    let _activeToast = null
+    function showUndoToast(message, onUndo) {
+      if (_activeToast) { _activeToast.remove(); _activeToast = null }
+      const toast = document.createElement('div')
+      toast.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#252528;border:0.5px solid rgba(255,255,255,0.18);border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:14px;font-family:JetBrains Mono,monospace;font-size:11px;color:#f0e8d8;z-index:9000;box-shadow:0 4px 20px rgba(0,0,0,0.4);opacity:0;transition:opacity 0.16s;'
+      const msg = document.createElement('span'); msg.textContent = message
+      const btn = document.createElement('button')
+      btn.textContent = 'undo'
+      btn.style.cssText = 'background:transparent;border:0.5px solid #a07420;color:#c8922a;padding:3px 10px;border-radius:4px;font-family:inherit;font-size:11px;cursor:pointer;'
+      btn.onclick = () => { try { onUndo() } finally { toast.remove(); if (_activeToast === toast) _activeToast = null } }
+      toast.appendChild(msg); toast.appendChild(btn)
+      document.body.appendChild(toast)
+      _activeToast = toast
+      requestAnimationFrame(() => { toast.style.opacity = '1' })
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.style.opacity = '0'
+          setTimeout(() => { toast.remove(); if (_activeToast === toast) _activeToast = null }, 200)
+        }
+      }, 10000)
+    }
+
     function applyTemplate(key) {
       const tmpl = TEMPLATES[key]
       if (!tmpl) return
       const editor = document.getElementById('editor')
+      const titleEl = document.getElementById('doc-title')
+      const priorValue = editor.value
+      const priorTitle = titleEl ? titleEl.value : ''
+
+      const isEmpty = !editor.value.trim()
 
       if (key === 'blank') {
-        if (editor.value.trim()) {
-          showConfirm('Clear all content? This cannot be undone.', () => {
+        // Blank is the one explicit "clear" path. Preserve confirm-to-clear so
+        // users retain a way to wipe a note, but make it undoable.
+        if (!isEmpty) {
+          showConfirm('Clear all content?', () => {
             editor.value = ''
             autoSave(); updateWordCount()
             if (outlineVisible) updateOutline()
+            showUndoToast('Cleared.', () => {
+              editor.value = priorValue
+              autoSave(); updateWordCount()
+              if (outlineVisible) updateOutline()
+            })
           })
           return
         }
-        editor.value = ''
+        // Blank + empty editor: nothing to do
       } else if (tmpl.content) {
-        if (editor.value.trim()) {
-          showConfirm('Replace current content with this template?', () => {
-            editor.value = tmpl.content
+        if (isEmpty) {
+          // Blank editor — populate title and content in full
+          editor.value = tmpl.content
+          if (titleEl && !priorTitle.trim() && tmpl.title) titleEl.value = tmpl.title
+        } else {
+          // Editor already has content — INSERT the template at the cursor,
+          // separated by a blank line. Never destructive.
+          const pos = editor.selectionStart
+          const before = editor.value.slice(0, pos)
+          const after  = editor.value.slice(pos)
+          const needsLeadingNL  = before.length && !/\n\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : ''
+          const needsTrailingNL = after.length  && !/^\n\n/.test(after)  ? (after.startsWith('\n') ? '\n' : '\n\n') : ''
+          const insert = needsLeadingNL + tmpl.content + needsTrailingNL
+          editor.value = before + insert + after
+          editor.selectionStart = editor.selectionEnd = pos + insert.length
+          showUndoToast(`Inserted ${key} template.`, () => {
+            editor.value = priorValue
+            if (titleEl) titleEl.value = priorTitle
             autoSave(); updateWordCount()
             if (outlineVisible) updateOutline()
           })
-          return
         }
-        editor.value = tmpl.content
       }
 
       autoSave(); updateWordCount()

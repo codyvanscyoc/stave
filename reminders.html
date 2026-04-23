@@ -80,13 +80,25 @@
 
     .reminder-row {
       padding: 10px 14px; border-bottom: 0.5px solid var(--border);
-      transition: background 0.12s; cursor: pointer;
+      transition: background 0.12s;
+      display: flex; align-items: flex-start; gap: 10px;
     }
 
     .reminder-row:hover { background: var(--bg2); }
     .reminder-row:last-child { border-bottom: none; }
 
     .reminder-row.past { opacity: 0.5; }
+
+    .reminder-check {
+      width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+      border: 1px solid var(--text3); margin-top: 3px; cursor: pointer;
+      transition: all 0.12s; background: transparent;
+    }
+    .reminder-check:hover { border-color: var(--accent); }
+    .reminder-check.done { background: var(--accent); border-color: var(--accent); }
+    .reminder-check.phase.done { background: var(--success); border-color: var(--success); }
+
+    .reminder-body { flex: 1; min-width: 0; }
 
     .reminder-task {
       font-size: 13px; color: var(--text); line-height: 1.4;
@@ -195,9 +207,33 @@
         const row = document.createElement('div')
         row.className = 'reminder-row' + (r.isPast ? ' past' : '')
 
-        const task = document.createElement('div')
-        task.className = 'reminder-task' + (r.done ? ' done' : '')
-        task.textContent = r.taskText
+        const check = document.createElement('button')
+        check.className = 'reminder-check' + (r.done ? ' done' : '') + (r.isPhaseDeadline ? ' phase' : '')
+        check.title = r.done ? 'mark as not done' : 'mark as done'
+        check.onclick = (ev) => {
+          ev.stopPropagation()
+          const newDone = !r.done
+          // Optimistic update so the click feels instant; the server-side
+          // refresh will override with canonical state.
+          r.done = newDone
+          check.classList.toggle('done', newDone)
+          taskEl.classList.toggle('done', newDone)
+          ipcRenderer.send('reminder-toggle', {
+            filename: r.filename,
+            mode: r.mode,
+            taskText: r.taskText,
+            isoString: r.isoString,
+            isPhaseDeadline: !!r.isPhaseDeadline,
+            newDone,
+          })
+        }
+
+        const body = document.createElement('div')
+        body.className = 'reminder-body'
+
+        const taskEl = document.createElement('div')
+        taskEl.className = 'reminder-task' + (r.done ? ' done' : '')
+        taskEl.textContent = r.taskText
 
         const metaEl = document.createElement('div')
         metaEl.className = 'reminder-meta'
@@ -223,17 +259,22 @@
           metaEl.appendChild(tag)
         }
         metaEl.appendChild(note)
-        row.appendChild(task)
-        row.appendChild(metaEl)
+        body.appendChild(taskEl)
+        body.appendChild(metaEl)
+        row.appendChild(check)
+        row.appendChild(body)
         list.appendChild(row)
       })
     }
 
-    ipcRenderer.send('get-all-reminders')
+    function refresh() { ipcRenderer.send('get-all-reminders') }
+    refresh()
     ipcRenderer.on('all-reminders', (event, reminders) => {
       allReminders = reminders
       renderReminders()
     })
+    // Broadcast from main when anything else writes to a note file
+    ipcRenderer.on('reminders-changed', () => refresh())
 
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeReminders()

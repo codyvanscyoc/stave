@@ -590,6 +590,17 @@
 
     const PHASE_COLORS = ['#c8922a','#4caf7d','#7f77dd','#d85a30','#378add','#d4537e','#e8b84b','#5bb8d4']
 
+    // Stable id so a phase-copy of a task can be linked back to the original.
+    function newTaskId() { return Math.random().toString(36).slice(2, 10) }
+
+    // Toggle the `done` bit of any twin with the same id, on the other side
+    // of the phase / top-level split. Keeps both views in sync.
+    function syncTaskDoneById(id, newDone) {
+      if (!id) return
+      tasks.forEach(t => { if (t.id === id) t.done = newDone })
+      phases.forEach(ph => (ph.tasks || []).forEach(pt => { if (pt.id === id) pt.done = newDone }))
+    }
+
     // current note data
     let currentFilepath = null
     let currentTitle = ''
@@ -674,10 +685,14 @@
     }
 
     function collectTasks() {
-      return Array.from(document.querySelectorAll('.ext-task-row')).map(row => ({
-        text: row.querySelector('.ext-task-text').textContent.trim(),
-        done: row.querySelector('.ext-task-check').classList.contains('done'),
-        reminder: row.dataset.reminder || null
+      // Source of truth is the in-memory tasks[] — toggle/blur handlers keep
+      // it synced with the UI, and this preserves task ids which the DOM
+      // dataset path drops.
+      return (tasks || []).map(t => ({
+        id: t.id || null,
+        text: t.text || '',
+        done: !!t.done,
+        reminder: t.reminder || null,
       }))
     }
 
@@ -777,16 +792,19 @@
       let md = `# ${data.title || 'untitled'}\ntype: plan\ncontext1: ${data.planContext || ''}\n\n## admin\n${data.admin || ''}\n\n## tasks\n`
       ;(data.tasks || []).forEach(t => {
         md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+        if (t.id)       md += `  id: ${t.id}\n`
         if (t.reminder) md += `  reminder: ${t.reminder}\n`
       })
       md += `\n## phases\n`
       ;(data.phases || []).forEach(phase => {
         md += `### ${phase.name}\n`
-        if (phase.color) md += `color: ${phase.color}\n`
-        if (phase.start) md += `start: ${phase.start}\n`
+        if (phase.color)    md += `color: ${phase.color}\n`
+        if (phase.start)    md += `start: ${phase.start}\n`
         if (phase.deadline) md += `deadline: ${phase.deadline}\n`
+        if (phase.done)     md += `status: done\n`
         ;(phase.tasks || []).forEach(t => {
           md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+          if (t.id) md += `  id: ${t.id}\n`
         })
       })
       md += `\n## links\n`
@@ -824,6 +842,26 @@
           if (e.target.closest('.phase-ctrl') || e.target.closest('.phase-deadline') || e.target.closest('.phase-name') || e.target.closest('.phase-color-btn')) return
           document.querySelectorAll('.phase-block').forEach(b => b.classList.remove('selected'))
           block.classList.toggle('selected')
+        }
+
+        // Phase-done checkbox — toggling this marks every child task done
+        // AND their twins in the top-level tasks list.
+        const phaseCheck = document.createElement('button')
+        phaseCheck.className = 'phase-done-check' + (phase.done ? ' done' : '')
+        phaseCheck.style.cssText = `width:14px;height:14px;border-radius:50%;border:1px solid ${phase.done ? color : 'var(--text3)'};background:${phase.done ? color : 'transparent'};cursor:pointer;padding:0;flex-shrink:0;`
+        phaseCheck.title = phase.done ? 'phase done — click to unmark' : 'mark phase done'
+        phaseCheck.onclick = (e) => {
+          e.stopPropagation()
+          const newDone = !phases[pi].done
+          phases[pi].done = newDone
+          if (newDone) {
+            // Cascade: every task in this phase (and its twin in tasks[]) becomes done
+            ;(phases[pi].tasks || []).forEach(pt => {
+              pt.done = true
+              if (pt.id) syncTaskDoneById(pt.id, true)
+            })
+          }
+          autoSave(); renderPhases(); renderExtractedTasks(); renderTimeline()
         }
 
         const nameInput = document.createElement('input')
@@ -883,7 +921,7 @@
         })
 
         controls.appendChild(colorBtn); controls.appendChild(upBtn); controls.appendChild(downBtn); controls.appendChild(delBtn)
-        header.appendChild(nameInput); header.appendChild(startBtn); header.appendChild(deadlineBtn); header.appendChild(controls)
+        header.appendChild(phaseCheck); header.appendChild(nameInput); header.appendChild(startBtn); header.appendChild(deadlineBtn); header.appendChild(controls)
 
         const tasksDiv = document.createElement('div')
         tasksDiv.className = 'phase-tasks'
@@ -895,8 +933,15 @@
           const check = document.createElement('div')
           check.className = 'phase-task-check' + (task.done ? ' done' : '')
           check.onclick = () => {
-            phases[pi].tasks[ti].done = !phases[pi].tasks[ti].done
-            check.classList.toggle('done'); textEl.classList.toggle('done'); autoSave()
+            const newDone = !phases[pi].tasks[ti].done
+            phases[pi].tasks[ti].done = newDone
+            // Mirror to the twin in tasks[] (if this phase-task was copied from there)
+            if (phases[pi].tasks[ti].id) {
+              const twin = tasks.find(t => t.id === phases[pi].tasks[ti].id)
+              if (twin) twin.done = newDone
+            }
+            check.classList.toggle('done'); textEl.classList.toggle('done')
+            autoSave(); renderExtractedTasks()
           }
 
           const textEl = document.createElement('div')
@@ -921,7 +966,7 @@
         taskInput.onkeydown = (e) => {
           if (e.key === 'Enter') {
             const text = taskInput.value.trim()
-            if (text) { phases[pi].tasks.push({ text, done: false }); autoSave(); renderPhases() }
+            if (text) { phases[pi].tasks.push({ id: newTaskId(), text, done: false }); autoSave(); renderPhases() }
           }
         }
         addRow.appendChild(taskInput); tasksDiv.appendChild(addRow)
@@ -1103,7 +1148,7 @@
       text.split(/(?<=[.!?\n])/).map(s => s.trim()).filter(s => s.length > 4)
         .map(s => ({ text: s.replace(/^>>\s*/,'').trim(), score: scoreSentence(s) }))
         .filter(s => s.score >= 4 && s.text.length > 0 && !existingTexts.includes(s.text.trim().toLowerCase()))
-        .forEach(c => { tasks.push({ text: c.text, done: false, reminder: null }); added++ })
+        .forEach(c => { tasks.push({ id: newTaskId(), text: c.text, done: false, reminder: null }); added++ })
       if (added > 0) { autoSave(); renderExtractedTasks() }
     }
 
@@ -1125,8 +1170,16 @@
         const check = document.createElement('div')
         check.className = 'ext-task-check' + (task.done ? ' done' : '')
         check.onclick = () => {
-          tasks[i].done = !tasks[i].done
-          check.classList.toggle('done'); textEl.classList.toggle('done'); autoSave()
+          const newDone = !tasks[i].done
+          tasks[i].done = newDone
+          // Mirror to any phase-copy with the same id
+          if (tasks[i].id) {
+            phases.forEach(ph => (ph.tasks || []).forEach(pt => {
+              if (pt.id === tasks[i].id) pt.done = newDone
+            }))
+          }
+          check.classList.toggle('done'); textEl.classList.toggle('done')
+          autoSave(); renderPhases()
         }
 
         const body = document.createElement('div')
@@ -1202,8 +1255,11 @@
         item.appendChild(dot)
         item.appendChild(document.createTextNode(phase.name))
         item.onclick = () => {
-          // copy task to phase, keep in tasks list
-          phases[pi].tasks.push({ text: tasks[taskIndex].text, done: false })
+          // Copy task to phase, keeping the original in tasks list. The phase
+          // copy shares the source's id so toggling either one syncs both.
+          const src = tasks[taskIndex]
+          if (!src.id) src.id = newTaskId()
+          phases[pi].tasks.push({ id: src.id, text: src.text, done: src.done })
           autoSave(); renderPhases()
           picker.remove()
           // flash phase

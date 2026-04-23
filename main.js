@@ -31,19 +31,32 @@ function loadPrefs() {
   try {
     if (fs.existsSync(PREFS_FILE))
       return { ...DEFAULT_PREFS, ...JSON.parse(fs.readFileSync(PREFS_FILE, 'utf8')) }
-  } catch(e) {}
+  } catch(e) { console.error('[loadPrefs] failed:', e) }
   return { ...DEFAULT_PREFS }
 }
 
 function savePrefs(data) {
-  try { fs.writeFileSync(PREFS_FILE, JSON.stringify(data, null, 2), 'utf8') } catch(e) {}
+  try { fs.writeFileSync(PREFS_FILE, JSON.stringify(data, null, 2), 'utf8') }
+  catch(e) { console.error('[savePrefs] failed:', e) }
 }
 
+const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
+const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
+
 function ensureDirs() {
-  const LONGFORM_DIR = path.join(NOTES_DIR, 'longform')
-  const PROJECTS_DIR = path.join(NOTES_DIR, 'projects')
   ;[NOTES_DIR, WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].forEach(d => {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true })
+  })
+}
+
+// Foreign-file guard (matches renderer.js). Lockin IPC write handlers
+// use this to refuse any write outside Stave's notes dirs.
+function isInStaveNotesDir(filepath) {
+  if (!filepath) return false
+  const abs = path.resolve(filepath)
+  return [WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].some(d => {
+    const prefix = path.resolve(d) + path.sep
+    return abs === path.resolve(d) || abs.startsWith(prefix)
   })
 }
 
@@ -311,7 +324,12 @@ ipcMain.on('push-lockin-plan-data', (event, data) => {
   }
 })
 ipcMain.on('lockin-plan-save', (event, { filepath, content }) => {
-  try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+  if (!isInStaveNotesDir(filepath)) {
+    console.error('[lockin-plan-save] REFUSED foreign filepath:', filepath)
+    return
+  }
+  try { fs.writeFileSync(filepath, content, 'utf8') }
+  catch(e) { console.error('[lockin-plan-save] write failed:', e) }
 })
 
 ipcMain.on('open-project-folder', (event, folderPath) => {
@@ -340,8 +358,46 @@ ipcMain.on('close-lockin', (event, updatedContent) => {
   if (lockInWin && !lockInWin.isDestroyed()) lockInWin.close()
 })
 
+// Show a file-picker on behalf of a lockin window and return the file's
+// contents as text. This is how users bring external .md / .txt files into
+// the current note — the source file is only READ, never attached as a tab
+// filepath (which would otherwise put it on the autosave rewrite path).
+ipcMain.on('import-file-dialog', (event) => {
+  const { dialog } = require('electron')
+  const senderWin = BrowserWindow.fromWebContents(event.sender)
+  const opts = {
+    title: 'Import text into note',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Text / Markdown', extensions: ['md', 'txt', 'markdown'] },
+      { name: 'All files', extensions: ['*'] }
+    ]
+  }
+  const picked = senderWin
+    ? dialog.showOpenDialogSync(senderWin, opts)
+    : dialog.showOpenDialogSync(opts)
+  if (!picked || !picked.length) {
+    event.sender.send('import-file-result', null)
+    return
+  }
+  const filePath = picked[0]
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8')
+    const basename = path.basename(filePath)
+    event.sender.send('import-file-result', { content: raw, basename })
+  } catch(e) {
+    console.error('[import-file-dialog] read failed:', e)
+    event.sender.send('import-file-result', null)
+  }
+})
+
 ipcMain.on('lockin-save', (event, { filepath, content }) => {
-  try { fs.writeFileSync(filepath, content, 'utf8') } catch(e) {}
+  if (!isInStaveNotesDir(filepath)) {
+    console.error('[lockin-save] REFUSED foreign filepath:', filepath)
+    return
+  }
+  try { fs.writeFileSync(filepath, content, 'utf8') }
+  catch(e) { console.error('[lockin-save] write failed:', e) }
 })
 ipcMain.on('lockin-drawer-lookup', (event, word) => {
   if (win) win.webContents.send('drawer-lookup', word)
@@ -404,33 +460,47 @@ ipcMain.on('get-all-reminders', (event) => {
         const titleLine = raw.split('\n').find(l => l.startsWith('# '))
         const noteTitle = titleLine ? titleLine.slice(2).trim() : filename.replace('.md','')
         const lines = raw.split('\n')
-        let currentTask = null
+        // Two-pass: first collect phase metadata (so `status: done` after the
+        // deadline line is visible at emit time), then emit reminders.
+        const phaseMeta = []        // { name, deadline, done }
         let inPhases = false
-        let currentPhase = null
+        let cur = null
         lines.forEach(line => {
           if (line === '## phases') { inPhases = true; return }
-          if (line.startsWith('## ') && line !== '## phases') { inPhases = false; currentPhase = null }
-
-          if (inPhases && line.startsWith('### ')) {
-            currentPhase = line.slice(4).trim()
+          if (line.startsWith('## ') && line !== '## phases') { inPhases = false; cur = null; return }
+          if (!inPhases) return
+          if (line.startsWith('### ')) {
+            cur = { name: line.slice(4).trim(), deadline: null, done: false }
+            phaseMeta.push(cur)
+          } else if (cur && line.startsWith('deadline: ')) {
+            cur.deadline = line.slice(10).trim()
+          } else if (cur && line.startsWith('status: ')) {
+            cur.done = line.slice(8).trim() === 'done'
           }
-          if (inPhases && currentPhase && line.startsWith('deadline: ')) {
-            const dateStr = line.slice(10).trim()
-            const isoString = dateStr + 'T23:59:00'
-            const deadlineTime = new Date(isoString)
-            if (!isNaN(deadlineTime)) {
-              allReminders.push({
-                taskText: currentPhase,
-                noteTitle, filename, mode, isoString,
-                isPast: deadlineTime < now,
-                done: false,
-                isPhaseDeadline: true
-              })
-            }
-          }
+        })
+        phaseMeta.forEach(p => {
+          if (!p.deadline) return
+          const isoString = p.deadline + 'T23:59:00'
+          const deadlineTime = new Date(isoString)
+          if (isNaN(deadlineTime)) return
+          allReminders.push({
+            taskText: p.name,
+            noteTitle, filename, mode, isoString,
+            isPast: deadlineTime < now,
+            done: p.done,
+            isPhaseDeadline: true,
+          })
+        })
 
+        // Task-level reminders (top-level only — phase tasks can't carry reminders today)
+        let currentTask = null
+        let sawPhases = false
+        lines.forEach(line => {
+          if (line === '## phases') { sawPhases = true; return }
+          if (sawPhases) return
           if (line.startsWith('- [ ] ') || line.startsWith('- [x] ')) {
             currentTask = { text: line.slice(6), done: line.startsWith('- [x]') }
+            return
           }
           if (line.startsWith('  reminder: ') && currentTask) {
             const isoString = line.slice(12).trim()
@@ -441,16 +511,115 @@ ipcMain.on('get-all-reminders', (event) => {
                 noteTitle, filename, mode, isoString,
                 isPast: reminderTime < now,
                 done: currentTask.done,
-                isPhaseDeadline: false
+                isPhaseDeadline: false,
               })
             }
           }
         })
       })
-    } catch(e) {}
+    } catch(e) { console.error('[get-all-reminders] read failed:', e) }
   })
   allReminders.sort((a,b) => new Date(a.isoString) - new Date(b.isoString))
   event.reply('all-reminders', allReminders)
+})
+
+// Toggle a task or phase-task done marker by rewriting the source file.
+// Broadcasts 'reminders-changed' + 'external-task-toggled' so any open
+// window refreshes. Invoked from reminders.html when the user clicks a
+// reminder checkbox.
+ipcMain.on('reminder-toggle', (event, req) => {
+  if (!req || !req.filename || !req.mode) return
+  const dir = req.mode === 'plan' ? PLAN_DIR
+            : req.mode === 'longform' ? path.join(NOTES_DIR, 'longform')
+            : req.mode === 'project'  ? path.join(NOTES_DIR, 'projects')
+            : WRITE_DIR
+  const filepath = path.join(dir, req.filename)
+  if (!isInStaveNotesDir(filepath)) {
+    console.error('[reminder-toggle] REFUSED foreign filepath:', filepath)
+    return
+  }
+
+  let raw
+  try { raw = fs.readFileSync(filepath, 'utf8') }
+  catch(e) { console.error('[reminder-toggle] read failed:', e); return }
+
+  const lines = raw.split('\n')
+  const targetText = (req.taskText || '').trim()
+  const targetIso  = (req.isoString || '').trim()
+  const mark = req.newDone ? 'x' : ' '
+  let mutated = false
+
+  if (req.isPhaseDeadline) {
+    // Phase deadline — add or remove a `status: done` line under the phase.
+    // The phase is the ### heading whose name equals targetText and whose
+    // deadline matches targetIso (YYYY-MM-DD prefix of the ISO).
+    const deadlineDate = targetIso.slice(0, 10)
+    let inPhase = false
+    let phaseDeadlineMatched = false
+    let phaseStartLine = -1
+    let phaseEndLine = lines.length
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] === '## phases') { inPhase = true; continue }
+      if (lines[i].startsWith('## ') && lines[i] !== '## phases') { inPhase = false; continue }
+      if (!inPhase) continue
+      if (lines[i].startsWith('### ')) {
+        if (phaseStartLine >= 0 && phaseDeadlineMatched) { phaseEndLine = i; break }
+        phaseStartLine = lines[i].slice(4).trim() === targetText ? i : -1
+        phaseDeadlineMatched = false
+        continue
+      }
+      if (phaseStartLine >= 0 && lines[i].startsWith('deadline: ') && lines[i].slice(10).trim() === deadlineDate) {
+        phaseDeadlineMatched = true
+      }
+    }
+    if (phaseStartLine >= 0 && phaseDeadlineMatched) {
+      // Look for an existing `status:` line between phaseStartLine and phaseEndLine
+      let statusIdx = -1
+      for (let i = phaseStartLine + 1; i < phaseEndLine; i++) {
+        if (lines[i].startsWith('status: ')) { statusIdx = i; break }
+        if (lines[i].startsWith('### ')) break
+      }
+      if (req.newDone) {
+        if (statusIdx >= 0) lines[statusIdx] = 'status: done'
+        else lines.splice(phaseStartLine + 1, 0, 'status: done')
+      } else if (statusIdx >= 0) {
+        lines.splice(statusIdx, 1)
+      }
+      mutated = true
+    }
+  } else {
+    // Per-task reminder — match on the task text + the following reminder line
+    for (let i = 0; i < lines.length - 1; i++) {
+      const m = lines[i].match(/^(- \[)([x ])(\] )(.+)$/)
+      if (!m) continue
+      const taskBody = m[4].trim()
+      if (taskBody !== targetText) continue
+      // Check if next non-blank line is a matching reminder
+      const next = lines[i+1]
+      if (next && next.startsWith('  reminder: ') && next.slice(12).trim() === targetIso) {
+        lines[i] = `${m[1]}${mark}${m[3]}${m[4]}`
+        mutated = true
+        break
+      }
+    }
+  }
+
+  if (!mutated) {
+    console.warn('[reminder-toggle] no matching line found for', req)
+    return
+  }
+  try { fs.writeFileSync(filepath, lines.join('\n'), 'utf8') }
+  catch(e) { console.error('[reminder-toggle] write failed:', e); return }
+
+  // Refresh reminders window and notify main window if the note is open
+  if (remindersWin && !remindersWin.isDestroyed()) {
+    remindersWin.webContents.send('reminders-changed')
+  }
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('external-task-toggled', {
+      filename: req.filename, mode: req.mode,
+    })
+  }
 })
 
 ipcMain.on('reschedule-reminders', (event, reminders) => {

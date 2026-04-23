@@ -33,6 +33,13 @@ function looksLikeStaveNote(raw) {
   return /^type:\s*(write|plan|longform)\s*$/m.test(head)
 }
 
+// Short, non-guessable id used to link a top-level task to its copy under a
+// phase, so toggling one syncs the other. 8 chars of base36 = ~41 bits of
+// entropy, plenty for per-note uniqueness.
+function newTaskId() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
 function tabHasContent(tab) {
   if (!tab) return false
   if (tab.mode === 'plan') {
@@ -383,6 +390,7 @@ function serializeTab(tab) {
 
     ;(tab.tasks || []).forEach(t => {
       md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+      if (t.id)       md += `  id: ${t.id}\n`
       if (t.reminder) md += `  reminder: ${t.reminder}\n`
     })
 
@@ -392,8 +400,10 @@ function serializeTab(tab) {
       if (phase.color)    md += `color: ${phase.color}\n`
       if (phase.start)    md += `start: ${phase.start}\n`
       if (phase.deadline) md += `deadline: ${phase.deadline}\n`
+      if (phase.done)     md += `status: done\n`
       ;(phase.tasks || []).forEach(t => {
         md += `- [${t.done ? 'x' : ' '}] ${t.text}\n`
+        if (t.id) md += `  id: ${t.id}\n`
       })
     })
 
@@ -428,16 +438,18 @@ function parseNote(raw, mode) {
     if (section === 'admin')   { admin   += (admin   ? '\n' : '') + line; return }
 
     if (section === 'tasks') {
-      if (line.startsWith('- [x] '))      tasks.push({ text: line.slice(6).trim(), done: true,  reminder: null })
-      else if (line.startsWith('- [ ] ')) tasks.push({ text: line.slice(6).trim(), done: false, reminder: null })
+      if (line.startsWith('- [x] '))      tasks.push({ id: null, text: line.slice(6).trim(), done: true,  reminder: null })
+      else if (line.startsWith('- [ ] ')) tasks.push({ id: null, text: line.slice(6).trim(), done: false, reminder: null })
       else if (line.startsWith('  reminder: ') && tasks.length > 0)
         tasks[tasks.length-1].reminder = line.slice(12).trim()
+      else if (line.startsWith('  id: ') && tasks.length > 0)
+        tasks[tasks.length-1].id = line.slice(6).trim()
       return
     }
 
     if (section === 'phases') {
       if (line.startsWith('### ')) {
-        currentPhase = { name: line.slice(4).trim(), color: null, start: null, deadline: null, tasks: [] }
+        currentPhase = { name: line.slice(4).trim(), color: null, start: null, deadline: null, done: false, tasks: [] }
         phases.push(currentPhase)
       } else if (line.startsWith('color: ') && currentPhase) {
         currentPhase.color = line.slice(7).trim()
@@ -445,8 +457,12 @@ function parseNote(raw, mode) {
         currentPhase.start = line.slice(7).trim()
       } else if (line.startsWith('deadline: ') && currentPhase) {
         currentPhase.deadline = line.slice(10).trim()
+      } else if (line.startsWith('status: ') && currentPhase) {
+        currentPhase.done = line.slice(8).trim() === 'done'
       } else if ((line.startsWith('- [ ] ') || line.startsWith('- [x] ')) && currentPhase) {
-        currentPhase.tasks.push({ text: line.slice(6).trim(), done: line.startsWith('- [x]') })
+        currentPhase.tasks.push({ id: null, text: line.slice(6).trim(), done: line.startsWith('- [x]') })
+      } else if (line.startsWith('  id: ') && currentPhase && currentPhase.tasks.length > 0) {
+        currentPhase.tasks[currentPhase.tasks.length-1].id = line.slice(6).trim()
       }
       return
     }
@@ -1642,13 +1658,14 @@ function extractTasks() {
 // TASKS UI
 // ════════════════════════════════════════
 
-function addTask(text, done=false, reminder=null) {
+function addTask(text, done=false, reminder=null, id=null) {
   const list  = document.getElementById('task-list')
   const empty = list.querySelector('.empty-tasks')
   if (empty) empty.remove()
 
   const row = document.createElement('div')
   row.className = 'task-row'
+  row.dataset.id = id || newTaskId()
   if (reminder) row.dataset.reminder = reminder
 
   const check = document.createElement('div')
@@ -1699,6 +1716,17 @@ function addTask(text, done=false, reminder=null) {
   check.onclick = () => {
     check.classList.toggle('done')
     label.classList.toggle('done')
+    // Sync twin phase-task by id so a tick here shows up in the phase view too
+    const tab = tabs[currentTabIndex]
+    const tid = row.dataset.id
+    if (tab && tid && Array.isArray(tab.phases)) {
+      const newDone = check.classList.contains('done')
+      tab.phases.forEach(phase => {
+        (phase.tasks || []).forEach(pt => {
+          if (pt.id === tid) pt.done = newDone
+        })
+      })
+    }
     updateTaskCount(); autoSave()
   }
 
@@ -1714,12 +1742,13 @@ function renderTasks(tasks) {
     list.innerHTML = '<div class="empty-tasks">no tasks yet — hit extract below</div>'
     return
   }
-  tasks.forEach(t => addTask(t.text, t.done, t.reminder))
+  tasks.forEach(t => addTask(t.text, t.done, t.reminder, t.id))
   updateTaskCount()
 }
 
 function getTasksFromDOM() {
   return Array.from(document.querySelectorAll('.task-row')).map(row => ({
+    id:       row.dataset.id || null,
     text:     row.querySelector('.task-text').textContent.trim(),
     done:     row.querySelector('.task-check').classList.contains('done'),
     reminder: row.dataset.reminder || null
@@ -1991,6 +2020,21 @@ function bindIPC() {
 
   ipcRenderer.on('new-note', (event, mode) => {
     newTabMode = mode; newTab()
+  })
+
+  // A reminder was toggled from reminders.html and main rewrote the file on
+  // disk. If that note is loaded as a tab, re-read it into the tab so the
+  // in-memory state matches disk — otherwise our next autosave would revert
+  // the toggle.
+  ipcRenderer.on('external-task-toggled', (event, { filename, mode }) => {
+    const idx = tabs.findIndex(t => t.filename === filename && t.mode === mode)
+    if (idx < 0) return
+    const dir = getDirForMode(mode)
+    const filepath = path.join(dir, filename)
+    if (!fs.existsSync(filepath)) return
+    const raw = fs.readFileSync(filepath, 'utf8')
+    Object.assign(tabs[idx], parseNote(raw, mode))
+    if (idx === currentTabIndex) loadTabIntoDOM(tabs[idx])
   })
 
   ipcRenderer.on('lockin-closed', (event, updatedContent) => {
