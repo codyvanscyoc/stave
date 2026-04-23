@@ -1,6 +1,6 @@
 {
   "name": "stave",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A minimal note app for creative and admin thinking",
   "main": "main.js",
   "scripts": {
@@ -14,7 +14,7 @@
     "productName": "Stave",
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
       "icon": "icon.png",
       "fileAssociations": [
         {
