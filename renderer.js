@@ -14,6 +14,39 @@ const BIBLE_INDEX_PATH  = path.join(__dirname, 'bible-index.json')
 const RECORDINGS_DIR    = path.join(NOTES_DIR, 'recordings')
 const RECORDING_COLORS  = ['#c8922a', '#4caf7d', '#7f77dd', '#378add']
 
+// ── FOREIGN-FILE GUARD ──
+// Stave must never attach its tab/autosave machinery to a filepath that
+// isn't a Stave-authored note, or it will round-trip the file through
+// serializeTab and destroy anything that doesn't match Stave's schema.
+function isInStaveNotesDir(filepath) {
+  if (!filepath) return false
+  const abs = path.resolve(filepath)
+  return [WRITE_DIR, PLAN_DIR, LONGFORM_DIR, PROJECTS_DIR].some(d => {
+    const prefix = path.resolve(d) + path.sep
+    return abs === path.resolve(d) || abs.startsWith(prefix)
+  })
+}
+
+function looksLikeStaveNote(raw) {
+  // Stave notes always carry "type: write|plan|longform" in the first few lines
+  const head = raw.split('\n').slice(0, 10).join('\n')
+  return /^type:\s*(write|plan|longform)\s*$/m.test(head)
+}
+
+function tabHasContent(tab) {
+  if (!tab) return false
+  if (tab.mode === 'plan') {
+    return !!(
+      (tab.admin && tab.admin.trim()) ||
+      (tab.planContext && tab.planContext.trim()) ||
+      (tab.tasks && tab.tasks.length) ||
+      (tab.phases && tab.phases.length) ||
+      (tab.links && tab.links.length)
+    )
+  }
+  return !!((tab.idea && tab.idea.trim()) || (tab.context && tab.context.trim()))
+}
+
 // ── STATE ──
 let tabs           = []
 let currentTabIndex = 0
@@ -475,7 +508,21 @@ function loadNoteAsTab(filename, mode) {
 
 function writeTabToDisk(tab) {
   if (!tab || !tab.filepath) return
-  try { fs.writeFileSync(tab.filepath, serializeTab(tab), 'utf8') } catch(e) {}
+  try {
+    // Last-line guard: refuse to overwrite a non-trivial file with an empty
+    // tab. Catches the foreign-file clobber path even if both upstream gates fail.
+    if (fs.existsSync(tab.filepath)) {
+      const existingSize = fs.statSync(tab.filepath).size
+      if (existingSize > 500 && !tabHasContent(tab)) {
+        console.error(
+          `[writeTabToDisk] REFUSED: tab has no content but existing file is ${existingSize}B. ` +
+          `Path: ${tab.filepath}. This is almost always a foreign-file clobber.`
+        )
+        return
+      }
+    }
+    fs.writeFileSync(tab.filepath, serializeTab(tab), 'utf8')
+  } catch(e) { console.error('[writeTabToDisk] failed:', e) }
 }
 
 function formatDateTitle(d) {
@@ -522,11 +569,15 @@ function createNoteFile(tab, callback) {
 function saveTabPrefs() {
   try {
     const prefs = loadPrefs()
-    prefs.tabs = tabs.map(t => ({ filename: t.filename, mode: t.mode, filepath: t.filepath }))
+    // Never persist a foreign filepath — it will be re-attached on next launch
+    // and clobbered by autosave before the user notices.
+    prefs.tabs = tabs
+      .filter(t => !t.filepath || isInStaveNotesDir(t.filepath))
+      .map(t => ({ filename: t.filename, mode: t.mode, filepath: t.filepath }))
     prefs.currentTabIndex = currentTabIndex
     prefs.winMode = winModeState
     fs.writeFileSync(path.join(NOTES_DIR, 'prefs.json'), JSON.stringify(prefs, null, 2), 'utf8')
-  } catch(e) {}
+  } catch(e) { console.error('[saveTabPrefs] failed:', e) }
 }
 
 function loadPrefs() {
@@ -2011,25 +2062,61 @@ function bindIPC() {
 
   ipcRenderer.on('open-file-path', (event, filePath) => {
     try {
-      const raw      = fs.readFileSync(filePath, 'utf8')
-      const typeLine = raw.split('\n').find(l => l.startsWith('type: '))
-      const mode     = typeLine ? typeLine.slice(5).trim() : 'write'
-      const filename = path.basename(filePath)
-      const tab      = emptyTab(mode)
-      tab.filename = filename
-      tab.filepath = filePath
-      Object.assign(tab, parseNote(raw, mode))
+      if (!filePath || !fs.existsSync(filePath)) return
+      const raw = fs.readFileSync(filePath, 'utf8')
+      const inside    = isInStaveNotesDir(filePath)
+      const staveNote = looksLikeStaveNote(raw)
+
+      let tab
+      if (inside || staveNote) {
+        // Trust either signal: inside Stave dirs OR carries a type: marker.
+        // Mobile-authored notes currently omit the type: line but still live
+        // under the Stave iCloud dir, so they pass via `inside`. A moved Stave
+        // note outside the dirs passes via `staveNote`. Only a double-negative
+        // is treated as foreign and imported as a new note.
+        const typeLine = raw.split('\n').find(l => l.startsWith('type: '))
+        let mode = typeLine ? typeLine.slice(5).trim() : null
+        if (!mode) {
+          // Fall back to directory-based inference for mobile-written notes
+          const abs = path.resolve(filePath)
+          if      (abs.startsWith(path.resolve(PLAN_DIR)     + path.sep)) mode = 'plan'
+          else if (abs.startsWith(path.resolve(LONGFORM_DIR) + path.sep)) mode = 'longform'
+          else if (abs.startsWith(path.resolve(PROJECTS_DIR) + path.sep)) mode = 'project'
+          else                                                            mode = 'write'
+        }
+        tab = emptyTab(mode)
+        tab.filename = path.basename(filePath)
+        tab.filepath = filePath
+        Object.assign(tab, parseNote(raw, mode))
+      } else {
+        // Foreign file — import the content into a NEW note under WRITE_DIR.
+        // Never attach the tab to the source; any autosave would destroy it.
+        const basename = path.basename(filePath, path.extname(filePath))
+        const now   = new Date()
+        const stamp = now.toISOString().slice(0,16).replace('T','_').replace(':','-')
+        const safe  = basename.replace(/[^a-z0-9_-]/gi, '-').replace(/-+/g, '-').slice(0, 40) || 'imported'
+        const newFilename = `${stamp}_${safe}.md`
+        const newFilepath = path.join(WRITE_DIR, newFilename)
+        tab = emptyTab('write')
+        tab.filename = newFilename
+        tab.filepath = newFilepath
+        tab.title    = basename
+        tab.idea     = raw
+        // Write the imported content immediately so the new note exists on disk
+        fs.writeFileSync(newFilepath, serializeTab(tab), 'utf8')
+      }
+
       clearTimeout(saveTimer)
       syncTabFromDOM()
       writeTabToDisk(tabs[currentTabIndex])
       tabs.push(tab)
       currentTabIndex = tabs.length - 1
-      newTabMode = mode
+      newTabMode  = tab.mode
       isSwitching = false
       loadTabIntoDOM(tab)
       renderTabBar()
       saveTabPrefs()
-    } catch(e) {}
+    } catch(e) { console.error('[open-file-path] failed:', e) }
   })
 
   ipcRenderer.on('drawer-lookup', async (event, word) => {
@@ -2159,14 +2246,20 @@ function init() {
   const savedTabs = prefs.tabs || []
   if (savedTabs.length > 0) {
     savedTabs.forEach(saved => {
-      if (saved.filepath && fs.existsSync(saved.filepath)) {
-        const tab = emptyTab(saved.mode)
-        tab.filename = saved.filename
-        tab.filepath = saved.filepath
-        const raw = fs.readFileSync(saved.filepath, 'utf8')
-        Object.assign(tab, parseNote(raw, saved.mode))
-        tabs.push(tab)
+      if (!saved.filepath || !fs.existsSync(saved.filepath)) return
+      // Only restore tabs whose filepath lives under Stave's notes dirs.
+      // A foreign path in prefs.tabs (from a prior build or a bug) would be
+      // silently clobbered by autosave after restore.
+      if (!isInStaveNotesDir(saved.filepath)) {
+        console.warn('[restore-tabs] skipping foreign filepath:', saved.filepath)
+        return
       }
+      const tab = emptyTab(saved.mode)
+      tab.filename = saved.filename
+      tab.filepath = saved.filepath
+      const raw = fs.readFileSync(saved.filepath, 'utf8')
+      Object.assign(tab, parseNote(raw, saved.mode))
+      tabs.push(tab)
     })
   }
 
