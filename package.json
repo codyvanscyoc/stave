@@ -1,6 +1,6 @@
 {
   "name": "stave",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "A minimal note app for creative and admin thinking",
   "main": "main.js",
   "scripts": {
