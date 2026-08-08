@@ -27,6 +27,15 @@ function isInStaveNotesDir(filepath) {
   })
 }
 
+// Write via a same-dir temp file + rename so a crash mid-write can never
+// leave a truncated note behind. Rename is atomic on APFS.
+function atomicWriteFileSync(filepath, data) {
+  const tmp = path.join(path.dirname(filepath), '.' + path.basename(filepath) + '.stave-tmp')
+  if (typeof data === 'string') fs.writeFileSync(tmp, data, 'utf8')
+  else fs.writeFileSync(tmp, data)
+  fs.renameSync(tmp, filepath)
+}
+
 function looksLikeStaveNote(raw) {
   // Stave notes always carry "type: write|plan|longform" in the first few lines
   const head = raw.split('\n').slice(0, 10).join('\n')
@@ -537,7 +546,7 @@ function writeTabToDisk(tab) {
         return
       }
     }
-    fs.writeFileSync(tab.filepath, serializeTab(tab), 'utf8')
+    atomicWriteFileSync(tab.filepath, serializeTab(tab))
   } catch(e) { console.error('[writeTabToDisk] failed:', e) }
 }
 
@@ -592,7 +601,7 @@ function saveTabPrefs() {
       .map(t => ({ filename: t.filename, mode: t.mode, filepath: t.filepath }))
     prefs.currentTabIndex = currentTabIndex
     prefs.winMode = winModeState
-    fs.writeFileSync(path.join(NOTES_DIR, 'prefs.json'), JSON.stringify(prefs, null, 2), 'utf8')
+    atomicWriteFileSync(path.join(NOTES_DIR, 'prefs.json'), JSON.stringify(prefs, null, 2))
   } catch(e) { console.error('[saveTabPrefs] failed:', e) }
 }
 
@@ -652,6 +661,18 @@ function autoSave() {
     renderTabBar()
   }, 800)
 }
+
+// Quit-time flush: main asks us to persist everything NOW (no debounce),
+// then acks so it can exit without dropping the last keystrokes.
+ipcRenderer.on('flush-save', () => {
+  try {
+    clearTimeout(saveTimer)
+    syncTabFromDOM()
+    saveCurrentTab()
+    saveTabPrefs()
+  } catch(e) { console.error('[flush-save] failed:', e) }
+  ipcRenderer.send('flush-save-done')
+})
 
 // ════════════════════════════════════════
 // TAB SWITCHING — SAFE
@@ -1357,7 +1378,7 @@ function saveSettings() {
   try {
     const p = path.join(NOTES_DIR, 'prefs.json')
     const existing = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : {}
-    fs.writeFileSync(p, JSON.stringify({ ...existing, theme: currentTheme, fontSize: currentFontSize }, null, 2))
+    atomicWriteFileSync(p, JSON.stringify({ ...existing, theme: currentTheme, fontSize: currentFontSize }, null, 2))
   } catch(e) {}
 }
 
