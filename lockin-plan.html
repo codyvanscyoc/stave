@@ -788,6 +788,12 @@
       ipcRenderer.send('lockin-plan-save', { filepath: currentFilepath, content: md })
     }
 
+    // Quit-time flush from main: persist immediately, then ack.
+    ipcRenderer.on('flush-save', () => {
+      try { clearTimeout(saveTimer); saveNow() } catch(e) {}
+      ipcRenderer.send('flush-save-done')
+    })
+
     function serializeNote(data) {
       let md = `# ${data.title || 'untitled'}\ntype: plan\ncontext1: ${data.planContext || ''}\n\n## admin\n${data.admin || ''}\n\n## tasks\n`
       ;(data.tasks || []).forEach(t => {

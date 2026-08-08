@@ -1294,31 +1294,39 @@
       }
     }
 
+    function saveNow() {
+      if (!currentFilepath) return
+      try {
+        const raw = fs.readFileSync(currentFilepath, 'utf8')
+        const content = document.getElementById('editor').value
+        let updated
+
+        if (currentMode === 'write' || currentMode === 'longform') {
+          updated = raw.replace(/(## idea\n)([\s\S]*?)(\n## |\n# |$)/,
+            (match, before, old, after) => before + content + '\n' + after)
+          if (!updated.includes(content))
+            updated = raw.replace(/(## idea\n)([\s\S]*)/, '$1' + content + '\n')
+        } else {
+          updated = raw.replace(/(## admin\n)([\s\S]*?)(\n## |\n# |$)/,
+            (match, before, old, after) => before + content + '\n' + after)
+          if (!updated.includes(content))
+            updated = raw.replace(/(## admin\n)([\s\S]*)/, '$1' + content + '\n')
+        }
+
+        ipcRenderer.send('lockin-save', { filepath: currentFilepath, content: updated })
+      } catch(e) {}
+    }
+
     function autoSave() {
       clearTimeout(saveTimer)
-      saveTimer = setTimeout(() => {
-        if (!currentFilepath) return
-        try {
-          const raw = fs.readFileSync(currentFilepath, 'utf8')
-          const content = document.getElementById('editor').value
-          let updated
-
-          if (currentMode === 'write' || currentMode === 'longform') {
-            updated = raw.replace(/(## idea\n)([\s\S]*?)(\n## |\n# |$)/,
-              (match, before, old, after) => before + content + '\n' + after)
-            if (!updated.includes(content))
-              updated = raw.replace(/(## idea\n)([\s\S]*)/, '$1' + content + '\n')
-          } else {
-            updated = raw.replace(/(## admin\n)([\s\S]*?)(\n## |\n# |$)/,
-              (match, before, old, after) => before + content + '\n' + after)
-            if (!updated.includes(content))
-              updated = raw.replace(/(## admin\n)([\s\S]*)/, '$1' + content + '\n')
-          }
-
-          ipcRenderer.send('lockin-save', { filepath: currentFilepath, content: updated })
-        } catch(e) {}
-      }, 800)
+      saveTimer = setTimeout(saveNow, 800)
     }
+
+    // Quit-time flush from main: persist immediately, then ack.
+    ipcRenderer.on('flush-save', () => {
+      try { clearTimeout(saveTimer); saveNow() } catch(e) {}
+      ipcRenderer.send('flush-save-done')
+    })
 
     // ── EXIT ──
     function exitLockIn() {
@@ -1329,7 +1337,7 @@
     // ── KEYBOARD ──
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') exitLockIn()
-      if (e.key === 's' && e.metaKey) { e.preventDefault(); autoSave() }
+      if (e.key === 's' && e.metaKey) { e.preventDefault(); clearTimeout(saveTimer); saveNow() }
       if (e.key === 'b' && e.metaKey) { e.preventDefault(); fmtToggle('**') }
       if (e.key === 'i' && e.metaKey) { e.preventDefault(); fmtToggle('_') }
     })

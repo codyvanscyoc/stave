@@ -36,7 +36,7 @@ function loadPrefs() {
 }
 
 function savePrefs(data) {
-  try { fs.writeFileSync(PREFS_FILE, JSON.stringify(data, null, 2), 'utf8') }
+  try { atomicWriteFileSync(PREFS_FILE, JSON.stringify(data, null, 2)) }
   catch(e) { console.error('[savePrefs] failed:', e) }
 }
 
@@ -58,6 +58,15 @@ function isInStaveNotesDir(filepath) {
     const prefix = path.resolve(d) + path.sep
     return abs === path.resolve(d) || abs.startsWith(prefix)
   })
+}
+
+// Write via a same-dir temp file + rename so a crash mid-write can never
+// leave a truncated note behind. Rename is atomic on APFS.
+function atomicWriteFileSync(filepath, data) {
+  const tmp = path.join(path.dirname(filepath), '.' + path.basename(filepath) + '.stave-tmp')
+  if (typeof data === 'string') fs.writeFileSync(tmp, data, 'utf8')
+  else fs.writeFileSync(tmp, data)
+  fs.renameSync(tmp, filepath)
 }
 
 function createWindow() {
@@ -153,7 +162,7 @@ function buildTrayMenu() {
     { label: 'Search Notes', click: () => openSearch() },
     { label: 'Reminders', click: () => openReminders() },
     { type: 'separator' },
-    { label: 'Quit S†AVE', click: () => app.exit(0) }
+    { label: 'Quit S†AVE', click: () => flushAndQuit() }
   ])
   tray.popUpContextMenu(menu)
 }
@@ -328,7 +337,7 @@ ipcMain.on('lockin-plan-save', (event, { filepath, content }) => {
     console.error('[lockin-plan-save] REFUSED foreign filepath:', filepath)
     return
   }
-  try { fs.writeFileSync(filepath, content, 'utf8') }
+  try { atomicWriteFileSync(filepath, content) }
   catch(e) { console.error('[lockin-plan-save] write failed:', e) }
 })
 
@@ -396,7 +405,7 @@ ipcMain.on('lockin-save', (event, { filepath, content }) => {
     console.error('[lockin-save] REFUSED foreign filepath:', filepath)
     return
   }
-  try { fs.writeFileSync(filepath, content, 'utf8') }
+  try { atomicWriteFileSync(filepath, content) }
   catch(e) { console.error('[lockin-save] write failed:', e) }
 })
 ipcMain.on('lockin-drawer-lookup', (event, word) => {
@@ -608,7 +617,7 @@ ipcMain.on('reminder-toggle', (event, req) => {
     console.warn('[reminder-toggle] no matching line found for', req)
     return
   }
-  try { fs.writeFileSync(filepath, lines.join('\n'), 'utf8') }
+  try { atomicWriteFileSync(filepath, lines.join('\n')) }
   catch(e) { console.error('[reminder-toggle] write failed:', e); return }
 
   // Refresh reminders window and notify main window if the note is open
@@ -772,3 +781,33 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', e => e.preventDefault())
 app.on('will-quit', () => globalShortcut.unregisterAll())
+
+// ── FLUSH ON QUIT ──
+// The editors debounce disk writes by 800ms, so an instant exit could drop
+// the last keystrokes. Ask every editing window to save NOW, then exit on
+// ack (or after a short failsafe if a renderer is wedged).
+let quitting = false
+let flushAcksPending = 0
+
+ipcMain.on('flush-save-done', () => {
+  if (quitting && --flushAcksPending <= 0) app.exit(0)
+})
+
+function flushAndQuit() {
+  if (quitting) return app.exit(0)
+  quitting = true
+  const editors = [win, lockInWin, lockInPlanWin]
+    .filter(w => w && !w.isDestroyed() && !w.webContents.isDestroyed())
+  flushAcksPending = editors.length
+  if (!flushAcksPending) return app.exit(0)
+  editors.forEach(w => w.webContents.send('flush-save'))
+  setTimeout(() => app.exit(0), 600)
+}
+
+// Covers OS-initiated quits too (logout, shutdown, Cmd+Q).
+app.on('before-quit', e => {
+  if (!quitting) {
+    e.preventDefault()
+    flushAndQuit()
+  }
+})
